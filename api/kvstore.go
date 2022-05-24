@@ -5,8 +5,7 @@ import "github.com/sirupsen/logrus"
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
 type KVStore interface {
-	// Close releases all resources associated with the KVStore. It is safe to call multiple (subsequent) times.
-	Close() error
+	Store
 	// Write starts a writable transaction and passes it to the given function.
 	Write(fn func(WriteTx) error, opts ...TxOption) error
 	// Read starts a read-only transaction and passes it to the given function.

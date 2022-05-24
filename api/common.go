@@ -5,6 +5,11 @@ import "errors"
 // ErrCommitFailed is returned when the commit of transaction fails.
 var ErrCommitFailed = errors.New("unable to commit transaction")
 
+type Store interface {
+	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
+	Close() error
+}
+
 // TxOption holds options for store transactions.
 type TxOption interface{}
 
