@@ -43,7 +43,14 @@ func CreateBBoltStore(filePath string, opts ...api.Option) (api.IterableKVStore,
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return createBBoltStore(filePath, nil, cfg)
+
+	bboltOpts := *bbolt.DefaultOptions
+	if cfg.NoSync {
+		bboltOpts.NoSync = true
+		bboltOpts.NoFreelistSync = true
+		bboltOpts.NoGrowSync = true
+	}
+	return createBBoltStore(filePath, &bboltOpts, cfg)
 }
 
 func createBBoltStore(filePath string, options *bbolt.Options, cfg api.Config) (*bboltStore, error) {

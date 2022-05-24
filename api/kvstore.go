@@ -21,7 +21,14 @@ type KVStore interface {
 type Option func(config *Config)
 
 type Config struct {
-	Log *logrus.Logger
+	Log    *logrus.Logger
+	NoSync bool
+}
+
+func WithNoSync() Option {
+	return func(config *Config) {
+		config.NoSync = true
+	}
 }
 
 func WithLogger(log *logrus.Logger) Option {
