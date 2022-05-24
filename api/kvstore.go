@@ -1,5 +1,6 @@
 package api
 
+import "github.com/sirupsen/logrus"
 
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
@@ -16,6 +17,18 @@ type KVStore interface {
 	// ReadShelf starts a read-only transaction, open a reader for the specified shelf and passes it to the given function.
 	// If the shelf does not exist, the function is not called.
 	ReadShelf(shelfName string, fn func(Reader) error) error
+}
+
+type Option func(config *Config)
+
+type Config struct {
+	Log *logrus.Logger
+}
+
+func WithLogger(log *logrus.Logger) Option {
+	return func(config *Config) {
+		config.Log = log
+	}
 }
 
 // ShelfStats contains statistics about a shelf.

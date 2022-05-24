@@ -34,15 +34,15 @@ const shelf = "test"
 
 func TestBBolt_Write(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		err := store.Write(func(tx api.WriteTx) error {
-			bucket, err := tx.GetShelfWriter(shelf)
+			writer, err := tx.GetShelfWriter(shelf)
 			if err != nil {
 				return err
 			}
-			return bucket.Put(key, value)
+			return writer.Put(key, value)
 		})
 
 		var actual []byte
@@ -55,7 +55,7 @@ func TestBBolt_Write(t *testing.T) {
 	})
 
 	t.Run("afterCommit and afterRollback after commit", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		var actual []byte
@@ -63,11 +63,11 @@ func TestBBolt_Write(t *testing.T) {
 		var afterRollbackCalled bool
 
 		err := store.Write(func(tx api.WriteTx) error {
-			bucket, err := tx.GetShelfWriter(shelf)
+			writer, err := tx.GetShelfWriter(shelf)
 			if err != nil {
 				return err
 			}
-			return bucket.Put(key, value)
+			return writer.Put(key, value)
 		}, api.AfterCommit(func() {
 			// Happens after commit, so we should be able to read the data now
 			innerError = store.ReadShelf(shelf, func(reader api.Reader) error {
@@ -86,7 +86,7 @@ func TestBBolt_Write(t *testing.T) {
 		assert.False(t, afterRollbackCalled)
 	})
 	t.Run("afterCommit and afterRollback on rollback", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		var afterCommitCalled bool
@@ -107,7 +107,7 @@ func TestBBolt_Write(t *testing.T) {
 
 func TestBBolt_Read(t *testing.T) {
 	t.Run("non-existing shelf", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		err := store.Read(func(tx api.ReadTx) error {
@@ -127,7 +127,7 @@ func TestBBolt_Read(t *testing.T) {
 
 func TestBBolt_WriteBucket(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		// First write
@@ -151,7 +151,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 		assert.Equal(t, value, actual)
 	})
 	t.Run("rollback on application error", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		err := store.WriteShelf(shelf, func(writer api.Writer) error {
@@ -178,7 +178,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 
 func TestBBolt_ReadBucket(t *testing.T) {
 	t.Run("read from non-existing shelf", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		defer store.Close()
 
 		called := false
@@ -194,7 +194,7 @@ func TestBBolt_ReadBucket(t *testing.T) {
 
 func TestBBolt_Close(t *testing.T) {
 	t.Run("close closed store", func(t *testing.T) {
-		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil)
+		store, _ := createBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), nil, api.Config{})
 		assert.NoError(t, store.Close())
 		assert.NoError(t, store.Close())
 	})

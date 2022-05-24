@@ -38,11 +38,15 @@ var _ api.IterableReader = (*bboltShelf)(nil)
 //var _ Cursor = (*bboltCursor)(nil)
 
 // CreateBBoltStore creates a new BBolt-backed KV store.
-func CreateBBoltStore(filePath string) (api.IterableKVStore, error) {
-	return createBBoltStore(filePath, nil)
+func CreateBBoltStore(filePath string, opts ...api.Option) (api.IterableKVStore, error) {
+	cfg := api.Config{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return createBBoltStore(filePath, nil, cfg)
 }
 
-func createBBoltStore(filePath string, options *bbolt.Options) (*bboltStore, error) {
+func createBBoltStore(filePath string, options *bbolt.Options, cfg api.Config) (*bboltStore, error) {
 	err := os.MkdirAll(path.Dir(filePath), os.ModePerm) // TODO: Right permissions?
 	if err != nil {
 		return nil, err
@@ -51,9 +55,15 @@ func createBBoltStore(filePath string, options *bbolt.Options) (*bboltStore, err
 	if err != nil {
 		return nil, err
 	}
+	var log *logrus.Logger
+	if cfg.Log != nil {
+		log = cfg.Log
+	} else {
+		log = logrus.StandardLogger()
+	}
 	return &bboltStore{
 		db:  db,
-		log: logrus.StandardLogger(),
+		log: log,
 	}, nil
 }
 
