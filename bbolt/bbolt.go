@@ -19,27 +19,25 @@
 package bbolt
 
 import (
-	"github.com/nuts-foundation/go-storage/api"
-	"github.com/nuts-foundation/go-storage/util"
+	"github.com/nuts-foundation/go-stoabs"
+	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
 	"go.etcd.io/bbolt"
 	"os"
 	"path"
 )
 
-var _ api.IterableKVStore = (*bboltStore)(nil)
-var _ api.ReadTx = (*bboltTx)(nil)
-var _ api.IterableReadTx = (*bboltTx)(nil)
-var _ api.WriteTx = (*bboltTx)(nil)
-var _ api.Reader = (*bboltShelf)(nil)
-var _ api.Writer = (*bboltShelf)(nil)
-var _ api.IterableReader = (*bboltShelf)(nil)
-
-//var _ Cursor = (*bboltCursor)(nil)
+var _ stoabs.IterableKVStore = (*bboltStore)(nil)
+var _ stoabs.ReadTx = (*bboltTx)(nil)
+var _ stoabs.IterableReadTx = (*bboltTx)(nil)
+var _ stoabs.WriteTx = (*bboltTx)(nil)
+var _ stoabs.Reader = (*bboltShelf)(nil)
+var _ stoabs.Writer = (*bboltShelf)(nil)
+var _ stoabs.IterableReader = (*bboltShelf)(nil)
 
 // CreateBBoltStore creates a new BBolt-backed KV store.
-func CreateBBoltStore(filePath string, opts ...api.Option) (api.IterableKVStore, error) {
-	cfg := api.Config{}
+func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.IterableKVStore, error) {
+	cfg := stoabs.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -53,7 +51,7 @@ func CreateBBoltStore(filePath string, opts ...api.Option) (api.IterableKVStore,
 	return createBBoltStore(filePath, &bboltOpts, cfg)
 }
 
-func createBBoltStore(filePath string, options *bbolt.Options, cfg api.Config) (*bboltStore, error) {
+func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config) (*bboltStore, error) {
 	err := os.MkdirAll(path.Dir(filePath), os.ModePerm) // TODO: Right permissions?
 	if err != nil {
 		return nil, err
@@ -83,25 +81,25 @@ func (b bboltStore) Close() error {
 	return b.db.Close()
 }
 
-func (b bboltStore) Write(fn func(api.WriteTx) error, opts ...api.TxOption) error {
+func (b bboltStore) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, true, opts)
 }
 
-func (b bboltStore) Read(fn func(api.ReadTx) error) error {
+func (b bboltStore) Read(fn func(stoabs.ReadTx) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, false, nil)
 }
 
-func (b bboltStore) ReadIterable(fn func(api.IterableReadTx) error) error {
+func (b bboltStore) ReadIterable(fn func(stoabs.IterableReadTx) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, false, nil)
 }
 
-func (b bboltStore) WriteShelf(shelfName string, fn func(writer api.Writer) error) error {
+func (b bboltStore) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		shelf, err := bboltTx{tx: tx}.GetShelfWriter(shelfName)
 		if err != nil {
@@ -111,7 +109,7 @@ func (b bboltStore) WriteShelf(shelfName string, fn func(writer api.Writer) erro
 	}, true, nil)
 }
 
-func (b bboltStore) ReadShelf(shelfName string, fn func(reader api.Reader) error) error {
+func (b bboltStore) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		shelf, err := bboltTx{tx: tx}.GetShelfReader(shelfName)
 		if err != nil {
@@ -124,8 +122,8 @@ func (b bboltStore) ReadShelf(shelfName string, fn func(reader api.Reader) error
 	}, false, nil)
 }
 
-func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []api.TxOption) error {
-	opts := api.TxOptions(optsSlice)
+func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
+	opts := stoabs.TxOptions(optsSlice)
 
 	// Start transaction, retrieve/create shelf to operate on
 	dbTX, err := b.db.Begin(writable)
@@ -149,7 +147,7 @@ func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice [
 		b.log.Trace("Committing BBolt transaction")
 		err := dbTX.Commit()
 		if err != nil {
-			return util.WrapError(api.ErrCommitFailed, err)
+			return util.WrapError(stoabs.ErrCommitFailed, err)
 		}
 		opts.InvokeAfterCommit()
 	} else {
@@ -170,15 +168,15 @@ type bboltTx struct {
 	tx *bbolt.Tx
 }
 
-func (b bboltTx) GetShelfReader(shelfName string) (api.Reader, error) {
+func (b bboltTx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
 	return b.getBucket(shelfName)
 }
 
-func (b bboltTx) FromIterableShelf(shelfName string) (api.IterableReader, error) {
+func (b bboltTx) FromIterableShelf(shelfName string) (stoabs.IterableReader, error) {
 	return b.getBucket(shelfName)
 }
 
-func (b bboltTx) GetShelfWriter(shelfName string) (api.Writer, error) {
+func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	bucket, err := b.tx.CreateBucketIfNotExists([]byte(shelfName))
 	if err != nil {
 		return nil, err
@@ -186,7 +184,7 @@ func (b bboltTx) GetShelfWriter(shelfName string) (api.Writer, error) {
 	return &bboltShelf{bucket: bucket}, nil
 }
 
-func (b bboltTx) getBucket(shelfName string) (api.IterableReader, error) {
+func (b bboltTx) getBucket(shelfName string) (stoabs.IterableReader, error) {
 	bucket := b.tx.Bucket([]byte(shelfName))
 	if bucket == nil {
 		return nil, nil
@@ -198,7 +196,7 @@ type bboltShelf struct {
 	bucket *bbolt.Bucket
 }
 
-func (t bboltShelf) Cursor() (api.Cursor, error) {
+func (t bboltShelf) Cursor() (stoabs.Cursor, error) {
 	return t.bucket.Cursor(), nil
 }
 
@@ -220,8 +218,8 @@ func (t bboltShelf) Delete(key []byte) error {
 	return t.bucket.Delete(key)
 }
 
-func (t bboltShelf) Stats() api.ShelfStats {
-	return api.ShelfStats{
+func (t bboltShelf) Stats() stoabs.ShelfStats {
+	return stoabs.ShelfStats{
 		NumEntries: uint(t.bucket.Stats().KeyN),
 	}
 }

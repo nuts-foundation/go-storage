@@ -20,8 +20,8 @@ package bbolt
 
 import (
 	"errors"
-	"github.com/nuts-foundation/go-storage/api"
-	"github.com/nuts-foundation/go-storage/util"
+	"github.com/nuts-foundation/go-stoabs"
+	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/stretchr/testify/assert"
 	"path"
 	"testing"
@@ -34,10 +34,10 @@ const shelf = "test"
 
 func TestBBolt_Write(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
-		err := store.Write(func(tx api.WriteTx) error {
+		err := store.Write(func(tx stoabs.WriteTx) error {
 			writer, err := tx.GetShelfWriter(shelf)
 			if err != nil {
 				return err
@@ -46,7 +46,7 @@ func TestBBolt_Write(t *testing.T) {
 		})
 
 		var actual []byte
-		err = store.ReadShelf(shelf, func(reader api.Reader) error {
+		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 			actual, err = reader.Get(key)
 			return err
 		})
@@ -55,29 +55,29 @@ func TestBBolt_Write(t *testing.T) {
 	})
 
 	t.Run("afterCommit and afterRollback after commit", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
 		var actual []byte
 		var innerError error
 		var afterRollbackCalled bool
 
-		err := store.Write(func(tx api.WriteTx) error {
+		err := store.Write(func(tx stoabs.WriteTx) error {
 			writer, err := tx.GetShelfWriter(shelf)
 			if err != nil {
 				return err
 			}
 			return writer.Put(key, value)
-		}, api.AfterCommit(func() {
+		}, stoabs.AfterCommit(func() {
 			// Happens after commit, so we should be able to read the data now
-			innerError = store.ReadShelf(shelf, func(reader api.Reader) error {
+			innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 				actual, innerError = reader.Get(key)
 				return innerError
 			})
 			if innerError != nil {
 				t.Fatal(innerError)
 			}
-		}), api.AfterRollback(func() {
+		}), stoabs.AfterRollback(func() {
 			afterRollbackCalled = true
 		}))
 
@@ -86,17 +86,17 @@ func TestBBolt_Write(t *testing.T) {
 		assert.False(t, afterRollbackCalled)
 	})
 	t.Run("afterCommit and afterRollback on rollback", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
 		var afterCommitCalled bool
 		var afterRollbackCalled bool
 
-		_ = store.Write(func(tx api.WriteTx) error {
+		_ = store.Write(func(tx stoabs.WriteTx) error {
 			return errors.New("failed")
-		}, api.AfterCommit(func() {
+		}, stoabs.AfterCommit(func() {
 			afterCommitCalled = true
-		}), api.AfterRollback(func() {
+		}), stoabs.AfterRollback(func() {
 			afterRollbackCalled = true
 		}))
 
@@ -107,10 +107,10 @@ func TestBBolt_Write(t *testing.T) {
 
 func TestBBolt_Read(t *testing.T) {
 	t.Run("non-existing shelf", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
-		err := store.Read(func(tx api.ReadTx) error {
+		err := store.Read(func(tx stoabs.ReadTx) error {
 			bucket, err := tx.GetShelfReader(shelf)
 			if err != nil {
 				return err
@@ -127,11 +127,11 @@ func TestBBolt_Read(t *testing.T) {
 
 func TestBBolt_WriteBucket(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
 		// First write
-		err := store.WriteShelf(shelf, func(writer api.Writer) error {
+		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
 			return writer.Put(key, value)
 		})
 		if !assert.NoError(t, err) {
@@ -140,7 +140,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 
 		// Now read
 		var actual []byte
-		err = store.ReadShelf(shelf, func(reader api.Reader) error {
+		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 			actual, err = reader.Get(key)
 			return err
 		})
@@ -151,10 +151,10 @@ func TestBBolt_WriteBucket(t *testing.T) {
 		assert.Equal(t, value, actual)
 	})
 	t.Run("rollback on application error", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
-		err := store.WriteShelf(shelf, func(writer api.Writer) error {
+		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
 			err := writer.Put(key, value)
 			if err != nil {
 				panic(err)
@@ -165,7 +165,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 
 		// Now assert the TX was rolled back
 		var actual []byte
-		err = store.ReadShelf(shelf, func(reader api.Reader) error {
+		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 			actual, err = reader.Get(key)
 			return err
 		})
@@ -178,11 +178,11 @@ func TestBBolt_WriteBucket(t *testing.T) {
 
 func TestBBolt_ReadBucket(t *testing.T) {
 	t.Run("read from non-existing shelf", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		defer store.Close()
 
 		called := false
-		err := store.ReadShelf(shelf, func(reader api.Reader) error {
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 			called = true
 			return nil
 		})
@@ -194,7 +194,7 @@ func TestBBolt_ReadBucket(t *testing.T) {
 
 func TestBBolt_Close(t *testing.T) {
 	t.Run("close closed store", func(t *testing.T) {
-		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), api.WithNoSync())
+		store, _ := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 		assert.NoError(t, store.Close())
 		assert.NoError(t, store.Close())
 	})
