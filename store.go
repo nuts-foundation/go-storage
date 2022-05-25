@@ -72,7 +72,6 @@ type Cursor interface {
 	Next() (key []byte, value []byte)
 }
 
-
 // IterableKVStore is like KVStore but supports iterating over shelves.
 type IterableKVStore interface {
 	KVStore
@@ -95,7 +94,6 @@ type IterableReadTx interface {
 	FromIterableShelf(shelfName string) (IterableReader, error)
 }
 
-
 // ErrCommitFailed is returned when the commit of transaction fails.
 var ErrCommitFailed = errors.New("unable to commit transaction")
 
@@ -109,9 +107,9 @@ type TxOption interface{}
 
 type TxOptions []TxOption
 
-func (opts TxOptions) InvokeAfterRollback() {
+func (opts TxOptions) InvokeOnRollback() {
 	for _, opt := range opts {
-		if ar, ok := opt.(*AfterRollbackOpt); ok {
+		if ar, ok := opt.(*OnRollbackOpt); ok {
 			ar.Func()
 		}
 	}
@@ -135,14 +133,14 @@ func AfterCommit(fn func()) TxOption {
 	return &AfterCommitOpt{Func: fn}
 }
 
-type AfterRollbackOpt struct {
+type OnRollbackOpt struct {
 	Func func()
 }
 
-// AfterRollback specifies a function that will be called after a transaction is successfully rolled back.
-// There can be multiple AfterRollback functions, which will be called in order.
-func AfterRollback(fn func()) TxOption {
-	return &AfterRollbackOpt{Func: fn}
+// OnRollback specifies a function that will be called after a transaction is successfully rolled back.
+// There can be multiple OnRollback functions, which will be called in order.
+func OnRollback(fn func()) TxOption {
+	return &OnRollbackOpt{Func: fn}
 }
 
 // WriteTx is used to write to a KVStore.

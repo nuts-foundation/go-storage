@@ -147,6 +147,7 @@ func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice [
 		b.log.Trace("Committing BBolt transaction")
 		err := dbTX.Commit()
 		if err != nil {
+			opts.InvokeOnRollback()
 			return util.WrapError(stoabs.ErrCommitFailed, err)
 		}
 		opts.InvokeAfterCommit()
@@ -155,9 +156,8 @@ func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice [
 		err := dbTX.Rollback()
 		if err != nil {
 			b.log.WithError(err).Error("Could not rollback BBolt transaction")
-		} else {
-			opts.InvokeAfterRollback()
 		}
+		opts.InvokeOnRollback()
 		return appError
 	}
 
