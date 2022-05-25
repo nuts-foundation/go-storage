@@ -1,4 +1,4 @@
-package api
+package stoabs
 
 // IterableKVStore is like KVStore but supports iterating over shelves.
 type IterableKVStore interface {

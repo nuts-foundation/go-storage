@@ -1,4 +1,4 @@
-package api
+package stoabs
 
 import "github.com/sirupsen/logrus"
 

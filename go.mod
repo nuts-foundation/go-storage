@@ -1,4 +1,4 @@
-module github.com/nuts-foundation/go-storage
+module github.com/nuts-foundation/go-stoabs
 
 go 1.17
 

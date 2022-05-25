@@ -1,0 +1,1 @@
+# Golang Storage Abstraction (go-stoabs)
