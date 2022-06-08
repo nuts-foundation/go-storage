@@ -100,6 +100,7 @@ var ErrCommitFailed = errors.New("unable to commit transaction")
 
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
+	// The context being passed can be used to specify a timeout for the close operation.
 	Close(ctx context.Context) error
 }
 
