@@ -1,8 +1,27 @@
+/*
+ * Copyright (C) 2022 Nuts community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
 package stoabs
 
 import (
 	"context"
 	"errors"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -47,12 +66,20 @@ type ShelfStats struct {
 	NumEntries uint
 }
 
+// CallerFn is the function type which is called for each key value pair when using Iterate() or Range()
+type CallerFn func(key Key, value []byte) error
+
 // Reader is used to read from a shelf.
 type Reader interface {
 	// Get returns the value for the given key. If it does not exist it returns nil.
-	Get(key []byte) ([]byte, error)
+	Get(key Key) ([]byte, error)
+	// Iterate walks over all key/value pairs for this shelf. Ordering is not guaranteed.
+	Iterate(callback CallerFn) error
 	// Stats returns statistics about the shelf.
 	Stats() ShelfStats
+	// Range calls the callback for each key/value pair on this shelf from (inclusive) and to (exclusive) given keys.
+	// Ordering is guaranteed and determined by the type of Key given.
+	Range(from Key, to Key, callback CallerFn) error
 }
 
 // Writer is used to write to a shelf.
@@ -60,39 +87,9 @@ type Writer interface {
 	Reader
 
 	// Put stores the given key and value in the shelf.
-	Put(key []byte, value []byte) error
+	Put(key Key, value []byte) error
 	// Delete removes the given key from the shelf.
-	Delete(key []byte) error
-}
-
-// Cursor defines the API for iterating over data in a shelf.
-type Cursor interface {
-	// Seek moves the cursor to the specified key.
-	Seek(seek []byte) (key []byte, value []byte)
-	// Next moves the cursor to the next key.
-	Next() (key []byte, value []byte)
-}
-
-// IterableKVStore is like KVStore but supports iterating over shelves.
-type IterableKVStore interface {
-	KVStore
-
-	// ReadIterable starts a read-only transaction and passes it to the given function.
-	ReadIterable(fn func(IterableReadTx) error) error
-}
-
-// IterableReader is a Reader that can also iterate over a shelf using a cursor.
-type IterableReader interface {
-	Reader
-
-	// Cursor returns a cursor for iterating over the shelf.
-	Cursor() (Cursor, error)
-}
-
-// IterableReadTx is like ReadTX, but iterable.
-type IterableReadTx interface {
-	// FromIterableShelf returns the specified shelf for reading. If it doesn't exist, nil is returned.
-	FromIterableShelf(shelfName string) (IterableReader, error)
+	Delete(key Key) error
 }
 
 // ErrCommitFailed is returned when the commit of transaction fails.

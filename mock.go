@@ -133,7 +133,7 @@ func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 }
 
 // Get mocks base method.
-func (m *MockReader) Get(key []byte) ([]byte, error) {
+func (m *MockReader) Get(key Key) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", key)
 	ret0, _ := ret[0].([]byte)
@@ -145,6 +145,34 @@ func (m *MockReader) Get(key []byte) ([]byte, error) {
 func (mr *MockReaderMockRecorder) Get(key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockReader)(nil).Get), key)
+}
+
+// Iterate mocks base method.
+func (m *MockReader) Iterate(callback CallerFn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Iterate", callback)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Iterate indicates an expected call of Iterate.
+func (mr *MockReaderMockRecorder) Iterate(callback interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterate", reflect.TypeOf((*MockReader)(nil).Iterate), callback)
+}
+
+// Range mocks base method.
+func (m *MockReader) Range(from, to Key, callback CallerFn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Range", from, to, callback)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Range indicates an expected call of Range.
+func (mr *MockReaderMockRecorder) Range(from, to, callback interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockReader)(nil).Range), from, to, callback)
 }
 
 // Stats mocks base method.
@@ -185,7 +213,7 @@ func (m *MockWriter) EXPECT() *MockWriterMockRecorder {
 }
 
 // Delete mocks base method.
-func (m *MockWriter) Delete(key []byte) error {
+func (m *MockWriter) Delete(key Key) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", key)
 	ret0, _ := ret[0].(error)
@@ -199,7 +227,7 @@ func (mr *MockWriterMockRecorder) Delete(key interface{}) *gomock.Call {
 }
 
 // Get mocks base method.
-func (m *MockWriter) Get(key []byte) ([]byte, error) {
+func (m *MockWriter) Get(key Key) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", key)
 	ret0, _ := ret[0].([]byte)
@@ -213,8 +241,22 @@ func (mr *MockWriterMockRecorder) Get(key interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWriter)(nil).Get), key)
 }
 
+// Iterate mocks base method.
+func (m *MockWriter) Iterate(callback CallerFn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Iterate", callback)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Iterate indicates an expected call of Iterate.
+func (mr *MockWriterMockRecorder) Iterate(callback interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterate", reflect.TypeOf((*MockWriter)(nil).Iterate), callback)
+}
+
 // Put mocks base method.
-func (m *MockWriter) Put(key, value []byte) error {
+func (m *MockWriter) Put(key Key, value []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Put", key, value)
 	ret0, _ := ret[0].(error)
@@ -225,6 +267,20 @@ func (m *MockWriter) Put(key, value []byte) error {
 func (mr *MockWriterMockRecorder) Put(key, value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockWriter)(nil).Put), key, value)
+}
+
+// Range mocks base method.
+func (m *MockWriter) Range(from, to Key, callback CallerFn) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Range", from, to, callback)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Range indicates an expected call of Range.
+func (mr *MockWriterMockRecorder) Range(from, to, callback interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockWriter)(nil).Range), from, to, callback)
 }
 
 // Stats mocks base method.
@@ -239,276 +295,6 @@ func (m *MockWriter) Stats() ShelfStats {
 func (mr *MockWriterMockRecorder) Stats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockWriter)(nil).Stats))
-}
-
-// MockCursor is a mock of Cursor interface.
-type MockCursor struct {
-	ctrl     *gomock.Controller
-	recorder *MockCursorMockRecorder
-}
-
-// MockCursorMockRecorder is the mock recorder for MockCursor.
-type MockCursorMockRecorder struct {
-	mock *MockCursor
-}
-
-// NewMockCursor creates a new mock instance.
-func NewMockCursor(ctrl *gomock.Controller) *MockCursor {
-	mock := &MockCursor{ctrl: ctrl}
-	mock.recorder = &MockCursorMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockCursor) EXPECT() *MockCursorMockRecorder {
-	return m.recorder
-}
-
-// Next mocks base method.
-func (m *MockCursor) Next() ([]byte, []byte) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].([]byte)
-	return ret0, ret1
-}
-
-// Next indicates an expected call of Next.
-func (mr *MockCursorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockCursor)(nil).Next))
-}
-
-// Seek mocks base method.
-func (m *MockCursor) Seek(seek []byte) ([]byte, []byte) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Seek", seek)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].([]byte)
-	return ret0, ret1
-}
-
-// Seek indicates an expected call of Seek.
-func (mr *MockCursorMockRecorder) Seek(seek interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seek", reflect.TypeOf((*MockCursor)(nil).Seek), seek)
-}
-
-// MockIterableKVStore is a mock of IterableKVStore interface.
-type MockIterableKVStore struct {
-	ctrl     *gomock.Controller
-	recorder *MockIterableKVStoreMockRecorder
-}
-
-// MockIterableKVStoreMockRecorder is the mock recorder for MockIterableKVStore.
-type MockIterableKVStoreMockRecorder struct {
-	mock *MockIterableKVStore
-}
-
-// NewMockIterableKVStore creates a new mock instance.
-func NewMockIterableKVStore(ctrl *gomock.Controller) *MockIterableKVStore {
-	mock := &MockIterableKVStore{ctrl: ctrl}
-	mock.recorder = &MockIterableKVStoreMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockIterableKVStore) EXPECT() *MockIterableKVStoreMockRecorder {
-	return m.recorder
-}
-
-// Close mocks base method.
-func (m *MockIterableKVStore) Close(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close.
-func (mr *MockIterableKVStoreMockRecorder) Close(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterableKVStore)(nil).Close), ctx)
-}
-
-// Read mocks base method.
-func (m *MockIterableKVStore) Read(fn func(ReadTx) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Read", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Read indicates an expected call of Read.
-func (mr *MockIterableKVStoreMockRecorder) Read(fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockIterableKVStore)(nil).Read), fn)
-}
-
-// ReadIterable mocks base method.
-func (m *MockIterableKVStore) ReadIterable(fn func(IterableReadTx) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadIterable", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReadIterable indicates an expected call of ReadIterable.
-func (mr *MockIterableKVStoreMockRecorder) ReadIterable(fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadIterable", reflect.TypeOf((*MockIterableKVStore)(nil).ReadIterable), fn)
-}
-
-// ReadShelf mocks base method.
-func (m *MockIterableKVStore) ReadShelf(shelfName string, fn func(Reader) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadShelf", shelfName, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReadShelf indicates an expected call of ReadShelf.
-func (mr *MockIterableKVStoreMockRecorder) ReadShelf(shelfName, fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadShelf", reflect.TypeOf((*MockIterableKVStore)(nil).ReadShelf), shelfName, fn)
-}
-
-// Write mocks base method.
-func (m *MockIterableKVStore) Write(fn func(WriteTx) error, opts ...TxOption) error {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{fn}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "Write", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Write indicates an expected call of Write.
-func (mr *MockIterableKVStoreMockRecorder) Write(fn interface{}, opts ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{fn}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockIterableKVStore)(nil).Write), varargs...)
-}
-
-// WriteShelf mocks base method.
-func (m *MockIterableKVStore) WriteShelf(shelfName string, fn func(Writer) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WriteShelf", shelfName, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteShelf indicates an expected call of WriteShelf.
-func (mr *MockIterableKVStoreMockRecorder) WriteShelf(shelfName, fn interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteShelf", reflect.TypeOf((*MockIterableKVStore)(nil).WriteShelf), shelfName, fn)
-}
-
-// MockIterableReader is a mock of IterableReader interface.
-type MockIterableReader struct {
-	ctrl     *gomock.Controller
-	recorder *MockIterableReaderMockRecorder
-}
-
-// MockIterableReaderMockRecorder is the mock recorder for MockIterableReader.
-type MockIterableReaderMockRecorder struct {
-	mock *MockIterableReader
-}
-
-// NewMockIterableReader creates a new mock instance.
-func NewMockIterableReader(ctrl *gomock.Controller) *MockIterableReader {
-	mock := &MockIterableReader{ctrl: ctrl}
-	mock.recorder = &MockIterableReaderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockIterableReader) EXPECT() *MockIterableReaderMockRecorder {
-	return m.recorder
-}
-
-// Cursor mocks base method.
-func (m *MockIterableReader) Cursor() (Cursor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cursor")
-	ret0, _ := ret[0].(Cursor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Cursor indicates an expected call of Cursor.
-func (mr *MockIterableReaderMockRecorder) Cursor() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cursor", reflect.TypeOf((*MockIterableReader)(nil).Cursor))
-}
-
-// Get mocks base method.
-func (m *MockIterableReader) Get(key []byte) ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", key)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Get indicates an expected call of Get.
-func (mr *MockIterableReaderMockRecorder) Get(key interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockIterableReader)(nil).Get), key)
-}
-
-// Stats mocks base method.
-func (m *MockIterableReader) Stats() ShelfStats {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stats")
-	ret0, _ := ret[0].(ShelfStats)
-	return ret0
-}
-
-// Stats indicates an expected call of Stats.
-func (mr *MockIterableReaderMockRecorder) Stats() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockIterableReader)(nil).Stats))
-}
-
-// MockIterableReadTx is a mock of IterableReadTx interface.
-type MockIterableReadTx struct {
-	ctrl     *gomock.Controller
-	recorder *MockIterableReadTxMockRecorder
-}
-
-// MockIterableReadTxMockRecorder is the mock recorder for MockIterableReadTx.
-type MockIterableReadTxMockRecorder struct {
-	mock *MockIterableReadTx
-}
-
-// NewMockIterableReadTx creates a new mock instance.
-func NewMockIterableReadTx(ctrl *gomock.Controller) *MockIterableReadTx {
-	mock := &MockIterableReadTx{ctrl: ctrl}
-	mock.recorder = &MockIterableReadTxMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockIterableReadTx) EXPECT() *MockIterableReadTxMockRecorder {
-	return m.recorder
-}
-
-// FromIterableShelf mocks base method.
-func (m *MockIterableReadTx) FromIterableShelf(shelfName string) (IterableReader, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FromIterableShelf", shelfName)
-	ret0, _ := ret[0].(IterableReader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FromIterableShelf indicates an expected call of FromIterableShelf.
-func (mr *MockIterableReadTxMockRecorder) FromIterableShelf(shelfName interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FromIterableShelf", reflect.TypeOf((*MockIterableReadTx)(nil).FromIterableShelf), shelfName)
 }
 
 // MockStore is a mock of Store interface.

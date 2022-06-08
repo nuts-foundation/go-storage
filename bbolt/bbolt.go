@@ -19,25 +19,24 @@
 package bbolt
 
 import (
+	"bytes"
 	"context"
+	"os"
+	"path"
+
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
 	"go.etcd.io/bbolt"
-	"os"
-	"path"
 )
 
-var _ stoabs.IterableKVStore = (*bboltStore)(nil)
 var _ stoabs.ReadTx = (*bboltTx)(nil)
-var _ stoabs.IterableReadTx = (*bboltTx)(nil)
 var _ stoabs.WriteTx = (*bboltTx)(nil)
 var _ stoabs.Reader = (*bboltShelf)(nil)
 var _ stoabs.Writer = (*bboltShelf)(nil)
-var _ stoabs.IterableReader = (*bboltShelf)(nil)
 
 // CreateBBoltStore creates a new BBolt-backed KV store.
-func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.IterableKVStore, error) {
+func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -101,12 +100,6 @@ func (b bboltStore) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption
 }
 
 func (b bboltStore) Read(fn func(stoabs.ReadTx) error) error {
-	return b.doTX(func(tx *bbolt.Tx) error {
-		return fn(&bboltTx{tx: tx})
-	}, false, nil)
-}
-
-func (b bboltStore) ReadIterable(fn func(stoabs.IterableReadTx) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, false, nil)
@@ -185,10 +178,6 @@ func (b bboltTx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
 	return b.getBucket(shelfName)
 }
 
-func (b bboltTx) FromIterableShelf(shelfName string) (stoabs.IterableReader, error) {
-	return b.getBucket(shelfName)
-}
-
 func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	bucket, err := b.tx.CreateBucketIfNotExists([]byte(shelfName))
 	if err != nil {
@@ -197,7 +186,7 @@ func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	return &bboltShelf{bucket: bucket}, nil
 }
 
-func (b bboltTx) getBucket(shelfName string) (stoabs.IterableReader, error) {
+func (b bboltTx) getBucket(shelfName string) (stoabs.Reader, error) {
 	bucket := b.tx.Bucket([]byte(shelfName))
 	if bucket == nil {
 		return nil, nil
@@ -209,12 +198,8 @@ type bboltShelf struct {
 	bucket *bbolt.Bucket
 }
 
-func (t bboltShelf) Cursor() (stoabs.Cursor, error) {
-	return t.bucket.Cursor(), nil
-}
-
-func (t bboltShelf) Get(key []byte) ([]byte, error) {
-	value := t.bucket.Get(key)
+func (t bboltShelf) Get(key stoabs.Key) ([]byte, error) {
+	value := t.bucket.Get(key.Bytes())
 	// Because things will go terribly wrong when you use a []byte returned by BBolt outside its transaction,
 	// we want to make sure to work with a copy.
 	//
@@ -223,16 +208,36 @@ func (t bboltShelf) Get(key []byte) ([]byte, error) {
 	return append(value[:0:0], value...), nil
 }
 
-func (t bboltShelf) Put(key []byte, value []byte) error {
-	return t.bucket.Put(key, value)
+func (t bboltShelf) Put(key stoabs.Key, value []byte) error {
+	return t.bucket.Put(key.Bytes(), value)
 }
 
-func (t bboltShelf) Delete(key []byte) error {
-	return t.bucket.Delete(key)
+func (t bboltShelf) Delete(key stoabs.Key) error {
+	return t.bucket.Delete(key.Bytes())
 }
 
 func (t bboltShelf) Stats() stoabs.ShelfStats {
 	return stoabs.ShelfStats{
 		NumEntries: uint(t.bucket.Stats().KeyN),
 	}
+}
+
+func (t bboltShelf) Iterate(callback stoabs.CallerFn) error {
+	cursor := t.bucket.Cursor()
+	for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+		if err := callback(stoabs.BytesKey(k), v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
+	cursor := t.bucket.Cursor()
+	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
+		if err := callback(stoabs.BytesKey(k), v); err != nil {
+			return err
+		}
+	}
+	return nil
 }

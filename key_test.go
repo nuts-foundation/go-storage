@@ -16,24 +16,20 @@
  *
  */
 
-package util
+package stoabs
 
 import (
-	"errors"
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWrapError(t *testing.T) {
-	var original = errors.New("original")
-	var cause = errors.New("cause")
-	wrapped := WrapError(original, cause)
-	assert.ErrorIs(t, wrapped, original)
-	assert.ErrorIs(t, wrapped, cause)
-}
+func TestSha256Key_Next(t *testing.T) {
+	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
+	hex2 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d6"
+	bytes, _ := hex.DecodeString(hex1)
+	key := NewSha256Key(*(*[32]byte)(bytes))
 
-func Test_wrappedError_Error(t *testing.T) {
-	wrapped := WrapError(errors.New("original"), errors.New("cause"))
-	assert.EqualError(t, wrapped, "original: cause")
+	assert.Equal(t, hex2, key.Next().String())
 }
