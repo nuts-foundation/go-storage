@@ -19,6 +19,7 @@
 package bbolt
 
 import (
+	"context"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
@@ -77,8 +78,20 @@ type bboltStore struct {
 	log *logrus.Logger
 }
 
-func (b bboltStore) Close() error {
-	return b.db.Close()
+func (b bboltStore) Close(ctx context.Context) error {
+	closeError := make(chan error)
+	go func() {
+		closeError <- b.db.Close()
+	}()
+	select {
+	case <-ctx.Done():
+		// Timeout
+		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
+		return ctx.Err()
+	case err := <-closeError:
+		// BBolt store closed, err may be nil if closed successfully
+		return err
+	}
 }
 
 func (b bboltStore) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {

@@ -5,6 +5,7 @@
 package stoabs
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -34,17 +35,17 @@ func (m *MockKVStore) EXPECT() *MockKVStoreMockRecorder {
 }
 
 // Close mocks base method.
-func (m *MockKVStore) Close() error {
+func (m *MockKVStore) Close(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "Close", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockKVStoreMockRecorder) Close() *gomock.Call {
+func (mr *MockKVStoreMockRecorder) Close(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockKVStore)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockKVStore)(nil).Close), ctx)
 }
 
 // Read mocks base method.
@@ -317,17 +318,17 @@ func (m *MockIterableKVStore) EXPECT() *MockIterableKVStoreMockRecorder {
 }
 
 // Close mocks base method.
-func (m *MockIterableKVStore) Close() error {
+func (m *MockIterableKVStore) Close(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "Close", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockIterableKVStoreMockRecorder) Close() *gomock.Call {
+func (mr *MockIterableKVStoreMockRecorder) Close(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterableKVStore)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterableKVStore)(nil).Close), ctx)
 }
 
 // Read mocks base method.
@@ -534,17 +535,17 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // Close mocks base method.
-func (m *MockStore) Close() error {
+func (m *MockStore) Close(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close")
+	ret := m.ctrl.Call(m, "Close", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close.
-func (mr *MockStoreMockRecorder) Close() *gomock.Call {
+func (mr *MockStoreMockRecorder) Close(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStore)(nil).Close))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStore)(nil).Close), ctx)
 }
 
 // MockTxOption is a mock of TxOption interface.
