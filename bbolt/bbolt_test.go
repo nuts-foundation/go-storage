@@ -241,6 +241,24 @@ func TestBboltShelf_Iterate(t *testing.T) {
 		assert.Equal(t, value, values[0])
 		assert.Equal(t, key, values[1])
 	})
+
+	t.Run("error", func(t *testing.T) {
+		store, _ := createStore(t)
+
+		// Write some data otherwise shelf is empty and no error can be returned
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
+				return errors.New("failure")
+			})
+
+			return err
+		})
+		assert.EqualError(t, err, "failure")
+	})
 }
 
 func TestBboltShelf_Range(t *testing.T) {
@@ -277,6 +295,27 @@ func TestBboltShelf_Range(t *testing.T) {
 		}
 		assert.Equal(t, key, keys[0])
 		assert.Equal(t, value, values[0])
+	})
+
+	t.Run("error", func(t *testing.T) {
+		store, _ := createStore(t)
+		from := stoabs.BytesKey(key) // inclusive
+		to := stoabs.BytesKey(value) // exclusive
+
+		// Write some data
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
+				return errors.New("failure")
+			})
+
+			return err
+		})
+
+		assert.EqualError(t, err, "failure")
 	})
 }
 

@@ -25,6 +25,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestUint32Key_Next(t *testing.T) {
+	key := Uint32Key(1)
+
+	assert.Equal(t, "2", key.Next().String())
+}
+
+func TestBytesKey_Next(t *testing.T) {
+	key := BytesKey([]byte{0x09})
+
+	assert.Equal(t, "0a", key.Next().String())
+}
+
 func TestSha256Key_Next(t *testing.T) {
 	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
 	hex2 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d6"
