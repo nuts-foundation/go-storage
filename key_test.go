@@ -31,10 +31,24 @@ func TestUint32Key_Next(t *testing.T) {
 	assert.Equal(t, "2", key.Next().String())
 }
 
+func TestUint32Key_Bytes(t *testing.T) {
+	key := Uint32Key(1)
+	expected := []byte{0, 0, 0, 1}
+
+	assert.Equal(t, expected, key.Bytes())
+}
+
 func TestBytesKey_Next(t *testing.T) {
 	key := BytesKey([]byte{0x09})
 
 	assert.Equal(t, "0a", key.Next().String())
+}
+
+func TestBytesKey_Bytes(t *testing.T) {
+	bytes := []byte{0x09}
+	key := BytesKey(bytes)
+
+	assert.Equal(t, bytes, key.Bytes())
 }
 
 func TestSha256Key_Next(t *testing.T) {
@@ -44,4 +58,14 @@ func TestSha256Key_Next(t *testing.T) {
 	key := NewSha256Key(*(*[32]byte)(bytes))
 
 	assert.Equal(t, hex2, key.Next().String())
+}
+
+func TestSha256Key_Bytes(t *testing.T) {
+	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
+	bytes, _ := hex.DecodeString(hex1)
+	key := NewSha256Key(*(*[32]byte)(bytes))
+
+	bytesKey := BytesKey(key.Bytes())
+
+	assert.Equal(t, hex1, bytesKey.String())
 }

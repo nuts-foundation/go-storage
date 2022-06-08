@@ -42,9 +42,10 @@ func (u Uint32Key) String() string {
 	return fmt.Sprintf("%d", u)
 }
 
+// Bytes outputs the byte representation of the uint32 in BigEndian
 func (u Uint32Key) Bytes() []byte {
 	bytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bytes[:], uint32(u))
+	binary.BigEndian.PutUint32(bytes[:], uint32(u))
 	return bytes
 }
 
