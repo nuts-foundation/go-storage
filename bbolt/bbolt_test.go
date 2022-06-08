@@ -19,6 +19,7 @@
 package bbolt
 
 import (
+	"context"
 	"errors"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
@@ -35,7 +36,7 @@ const shelf = "test"
 func TestBBolt_Write(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		err := store.Write(func(tx stoabs.WriteTx) error {
 			writer, err := tx.GetShelfWriter(shelf)
@@ -56,7 +57,7 @@ func TestBBolt_Write(t *testing.T) {
 
 	t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		var rollbackCalled = false
 		var afterCommitCalled = false
@@ -75,7 +76,7 @@ func TestBBolt_Write(t *testing.T) {
 
 	t.Run("afterCommit and onRollback after commit", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		var actual []byte
 		var innerError error
@@ -106,7 +107,7 @@ func TestBBolt_Write(t *testing.T) {
 	})
 	t.Run("afterCommit and onRollback on rollback", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		var afterCommitCalled bool
 		var onRollbackCalled bool
@@ -127,7 +128,7 @@ func TestBBolt_Write(t *testing.T) {
 func TestBBolt_Read(t *testing.T) {
 	t.Run("non-existing shelf", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		err := store.Read(func(tx stoabs.ReadTx) error {
 			bucket, err := tx.GetShelfReader(shelf)
@@ -147,7 +148,7 @@ func TestBBolt_Read(t *testing.T) {
 func TestBBolt_WriteBucket(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		// First write
 		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
@@ -171,7 +172,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 	})
 	t.Run("rollback on application error", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
 			err := writer.Put(key, value)
@@ -198,7 +199,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 func TestBBolt_ReadBucket(t *testing.T) {
 	t.Run("read from non-existing shelf", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close()
+		defer store.Close(context.Background())
 
 		called := false
 		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
@@ -214,8 +215,15 @@ func TestBBolt_ReadBucket(t *testing.T) {
 func TestBBolt_Close(t *testing.T) {
 	t.Run("close closed store", func(t *testing.T) {
 		store, _ := createStore(t)
-		assert.NoError(t, store.Close())
-		assert.NoError(t, store.Close())
+		assert.NoError(t, store.Close(context.Background()))
+		assert.NoError(t, store.Close(context.Background()))
+	})
+	t.Run("timeout", func(t *testing.T) {
+		store, _ := createStore(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := store.Close(ctx)
+		assert.Equal(t, err, context.Canceled)
 	})
 }
 

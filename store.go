@@ -1,6 +1,7 @@
 package stoabs
 
 import (
+	"context"
 	"errors"
 	"github.com/sirupsen/logrus"
 )
@@ -99,7 +100,7 @@ var ErrCommitFailed = errors.New("unable to commit transaction")
 
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
-	Close() error
+	Close(ctx context.Context) error
 }
 
 // TxOption holds options for store transactions.
