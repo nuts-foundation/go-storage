@@ -21,11 +21,12 @@ package bbolt
 import (
 	"context"
 	"errors"
+	"path"
+	"testing"
+
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/stretchr/testify/assert"
-	"path"
-	"testing"
 )
 
 var key = []byte{1, 2, 3}
@@ -36,19 +37,18 @@ const shelf = "test"
 func TestBBolt_Write(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		err := store.Write(func(tx stoabs.WriteTx) error {
 			writer, err := tx.GetShelfWriter(shelf)
 			if err != nil {
 				return err
 			}
-			return writer.Put(key, value)
+			return writer.Put(stoabs.BytesKey(key), value)
 		})
 
 		var actual []byte
 		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(key)
+			actual, err = reader.Get(stoabs.BytesKey(key))
 			return err
 		})
 		assert.NoError(t, err)
@@ -57,7 +57,6 @@ func TestBBolt_Write(t *testing.T) {
 
 	t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		var rollbackCalled = false
 		var afterCommitCalled = false
@@ -76,7 +75,6 @@ func TestBBolt_Write(t *testing.T) {
 
 	t.Run("afterCommit and onRollback after commit", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		var actual []byte
 		var innerError error
@@ -87,11 +85,11 @@ func TestBBolt_Write(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return writer.Put(key, value)
+			return writer.Put(stoabs.BytesKey(key), value)
 		}, stoabs.AfterCommit(func() {
 			// Happens after commit, so we should be able to read the data now
 			innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-				actual, innerError = reader.Get(key)
+				actual, innerError = reader.Get(stoabs.BytesKey(key))
 				return innerError
 			})
 			if innerError != nil {
@@ -107,7 +105,6 @@ func TestBBolt_Write(t *testing.T) {
 	})
 	t.Run("afterCommit and onRollback on rollback", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		var afterCommitCalled bool
 		var onRollbackCalled bool
@@ -128,7 +125,6 @@ func TestBBolt_Write(t *testing.T) {
 func TestBBolt_Read(t *testing.T) {
 	t.Run("non-existing shelf", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		err := store.Read(func(tx stoabs.ReadTx) error {
 			bucket, err := tx.GetShelfReader(shelf)
@@ -145,14 +141,13 @@ func TestBBolt_Read(t *testing.T) {
 	})
 }
 
-func TestBBolt_WriteBucket(t *testing.T) {
+func TestBBolt_WriteShelf(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		// First write
 		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(key, value)
+			return writer.Put(stoabs.BytesKey(key), value)
 		})
 		if !assert.NoError(t, err) {
 			return
@@ -161,7 +156,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 		// Now read
 		var actual []byte
 		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(key)
+			actual, err = reader.Get(stoabs.BytesKey(key))
 			return err
 		})
 		if !assert.NoError(t, err) {
@@ -172,10 +167,9 @@ func TestBBolt_WriteBucket(t *testing.T) {
 	})
 	t.Run("rollback on application error", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			err := writer.Put(key, value)
+			err := writer.Put(stoabs.BytesKey(key), value)
 			if err != nil {
 				panic(err)
 			}
@@ -186,7 +180,7 @@ func TestBBolt_WriteBucket(t *testing.T) {
 		// Now assert the TX was rolled back
 		var actual []byte
 		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(key)
+			actual, err = reader.Get(stoabs.BytesKey(key))
 			return err
 		})
 		if !assert.NoError(t, err) {
@@ -196,10 +190,9 @@ func TestBBolt_WriteBucket(t *testing.T) {
 	})
 }
 
-func TestBBolt_ReadBucket(t *testing.T) {
+func TestBBolt_ReadShelf(t *testing.T) {
 	t.Run("read from non-existing shelf", func(t *testing.T) {
 		store, _ := createStore(t)
-		defer store.Close(context.Background())
 
 		called := false
 		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
@@ -209,6 +202,120 @@ func TestBBolt_ReadBucket(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.False(t, called)
+	})
+}
+
+func TestBboltShelf_Iterate(t *testing.T) {
+	t.Run("iterates over all keys", func(t *testing.T) {
+		store, _ := createStore(t)
+
+		// Write some data
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = writer.Put(stoabs.BytesKey(value), key)
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		var keys, values [][]byte
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
+				keys = append(keys, key.Bytes())
+				values = append(values, value)
+				return nil
+			})
+
+			return err
+		})
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if !assert.Len(t, keys, 2) {
+			return
+		}
+		if !assert.Len(t, values, 2) {
+			return
+		}
+		// this ordering is how bbolt is sorted: binary tree
+		assert.Equal(t, key, keys[0])
+		assert.Equal(t, value, keys[1])
+		assert.Equal(t, value, values[0])
+		assert.Equal(t, key, values[1])
+	})
+
+	t.Run("error", func(t *testing.T) {
+		store, _ := createStore(t)
+
+		// Write some data otherwise shelf is empty and no error can be returned
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
+				return errors.New("failure")
+			})
+
+			return err
+		})
+		assert.EqualError(t, err, "failure")
+	})
+}
+
+func TestBboltShelf_Range(t *testing.T) {
+	t.Run("returns correct key/values", func(t *testing.T) {
+		store, _ := createStore(t)
+		from := stoabs.BytesKey(key) // inclusive
+		to := stoabs.BytesKey(value) // exclusive
+
+		// Write some data
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = writer.Put(stoabs.BytesKey(value), key)
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		var keys, values [][]byte
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
+				keys = append(keys, key.Bytes())
+				values = append(values, value)
+				return nil
+			})
+
+			return err
+		})
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		if !assert.Len(t, keys, 1) {
+			return
+		}
+		if !assert.Len(t, values, 1) {
+			return
+		}
+		assert.Equal(t, key, keys[0])
+		assert.Equal(t, value, values[0])
+	})
+
+	t.Run("error", func(t *testing.T) {
+		store, _ := createStore(t)
+		from := stoabs.BytesKey(key) // inclusive
+		to := stoabs.BytesKey(value) // exclusive
+
+		// Write some data
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.BytesKey(key), value)
+		})
+
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
+				return errors.New("failure")
+			})
+
+			return err
+		})
+
+		assert.EqualError(t, err, "failure")
 	})
 }
 
@@ -227,6 +334,10 @@ func TestBBolt_Close(t *testing.T) {
 	})
 }
 
-func createStore(t *testing.T) (stoabs.IterableKVStore, error) {
-	return CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
+func createStore(t *testing.T) (stoabs.KVStore, error) {
+	store, err := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
+	t.Cleanup(func() {
+		store.Close(context.Background())
+	})
+	return store, err
 }

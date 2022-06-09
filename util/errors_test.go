@@ -20,8 +20,9 @@ package util
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWrapError(t *testing.T) {
