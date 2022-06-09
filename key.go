@@ -53,30 +53,30 @@ func (u Uint32Key) Next() Key {
 	return u + 1
 }
 
-// Sha256Key is a type helper for a 256 bits hash as Key
-type Sha256Key [32]byte
+// HashKey is a type helper for a 256 bits hash as Key
+type HashKey [32]byte
 
-// NewSha256Key creates a new Sha256Key from bytes
-func NewSha256Key(bytes [32]byte) Key {
-	return Sha256Key(bytes)
+// NewHashKey creates a new HashKey from bytes
+func NewHashKey(bytes [32]byte) Key {
+	return HashKey(bytes)
 }
 
 // String returns the hex encoding of the 256 bits hash
-func (s Sha256Key) String() string {
+func (s HashKey) String() string {
 	return hex.EncodeToString(s[:])
 }
 
-func (s Sha256Key) Bytes() []byte {
+func (s HashKey) Bytes() []byte {
 	return s[:]
 }
 
-func (s Sha256Key) Next() Key {
+func (s HashKey) Next() Key {
 	next := &big.Int{}
 	add := big.NewInt(1)
 	next.SetBytes(s[:])
 	next.Add(next, add)
 	bytes := next.Bytes()
-	return Sha256Key(*(*[32]byte)(bytes[:32]))
+	return HashKey(*(*[32]byte)(bytes[:32]))
 }
 
 // BytesKey is a type helper for a byte slice as Key

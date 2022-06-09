@@ -51,19 +51,19 @@ func TestBytesKey_Bytes(t *testing.T) {
 	assert.Equal(t, bytes, key.Bytes())
 }
 
-func TestSha256Key_Next(t *testing.T) {
+func TestHashKey_Next(t *testing.T) {
 	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
 	hex2 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d6"
 	bytes, _ := hex.DecodeString(hex1)
-	key := NewSha256Key(*(*[32]byte)(bytes))
+	key := NewHashKey(*(*[32]byte)(bytes))
 
 	assert.Equal(t, hex2, key.Next().String())
 }
 
-func TestSha256Key_Bytes(t *testing.T) {
+func TestHashKey_Bytes(t *testing.T) {
 	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
 	bytes, _ := hex.DecodeString(hex1)
-	key := NewSha256Key(*(*[32]byte)(bytes))
+	key := NewHashKey(*(*[32]byte)(bytes))
 
 	bytesKey := BytesKey(key.Bytes())
 

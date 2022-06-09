@@ -225,7 +225,9 @@ func (t bboltShelf) Stats() stoabs.ShelfStats {
 func (t bboltShelf) Iterate(callback stoabs.CallerFn) error {
 	cursor := t.bucket.Cursor()
 	for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-		if err := callback(stoabs.BytesKey(k), v); err != nil {
+		// return a copy to avoid data manipulation
+		vCopy := append(v[:0:0], v...)
+		if err := callback(stoabs.BytesKey(k), vCopy); err != nil {
 			return err
 		}
 	}
@@ -235,7 +237,9 @@ func (t bboltShelf) Iterate(callback stoabs.CallerFn) error {
 func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
 	cursor := t.bucket.Cursor()
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
-		if err := callback(stoabs.BytesKey(k), v); err != nil {
+		// return a copy to avoid data manipulation
+		vCopy := append(v[:0:0], v...)
+		if err := callback(stoabs.BytesKey(k), vCopy); err != nil {
 			return err
 		}
 	}
