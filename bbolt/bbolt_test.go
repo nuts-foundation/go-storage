@@ -21,8 +21,10 @@ package bbolt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
@@ -316,6 +318,71 @@ func TestBboltShelf_Range(t *testing.T) {
 		})
 
 		assert.EqualError(t, err, "failure")
+	})
+}
+
+func TestBboltShelf_FlushInterval(t *testing.T) {
+	t.Run("flush on close when dirty", func(t *testing.T) {
+		dbPath := path.Join(util.TestDirectory(t), "bbolt.db")
+		store, _ := CreateBBoltStore(dbPath, stoabs.WithSyncInterval(time.Second))
+
+		// Write 100 keys
+		const expectedNumEntries = 100
+		data := make([]byte, 1024)
+		for i := 0; i < expectedNumEntries; i++ {
+			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				return writer.Put(stoabs.BytesKey(fmt.Sprintf("%d", i)), data)
+			})
+			if !assert.NoError(t, err) {
+				return
+			}
+		}
+
+		// Close should flush
+		_ = store.Close(context.Background())
+
+		// Reopen, check data was flushed
+		store, _ = CreateBBoltStore(dbPath, stoabs.WithSyncInterval(time.Second))
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			assert.Equal(t, uint(expectedNumEntries), reader.Stats().NumEntries)
+			return nil
+		})
+		assert.NoError(t, err)
+
+		_ = store.Close(context.Background())
+
+	})
+}
+
+func BenchmarkBBoltShelf_Flush(b *testing.B) {
+	const expectedNumEntries = 10
+	b.Run("auto flush", func(b *testing.B) {
+		dbPath := path.Join(util.TestDirectory(b), "bbolt.db")
+		store, _ := CreateBBoltStore(dbPath)
+
+		b.ResetTimer()
+		for x := 0; x < b.N; x++ {
+			for i := 0; i < expectedNumEntries; i++ {
+				_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+					return writer.Put(stoabs.BytesKey(fmt.Sprintf("%d", i)), value)
+				})
+			}
+		}
+		_ = store.Close(context.Background())
+	})
+	b.Run("flush at interval", func(b *testing.B) {
+		dbPath := path.Join(util.TestDirectory(b), "bbolt.db")
+		store, _ := CreateBBoltStore(dbPath, stoabs.WithSyncInterval(time.Second))
+
+		b.ResetTimer()
+		for x := 0; x < b.N; x++ {
+			for i := 0; i < expectedNumEntries; i++ {
+				_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+					return writer.Put(stoabs.BytesKey(fmt.Sprintf("%d", i)), value)
+				})
+			}
+		}
+		_ = store.Close(context.Background())
 	})
 }
 

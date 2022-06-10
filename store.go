@@ -21,6 +21,8 @@ package stoabs
 import (
 	"context"
 	"errors"
+	"math"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -44,13 +46,22 @@ type KVStore interface {
 type Option func(config *Config)
 
 type Config struct {
-	Log    *logrus.Logger
-	NoSync bool
+	Log *logrus.Logger
+	// SyncInterval specifies whether changes to the database should be flushed to disk. If not set,
+	// changes will be flushed to disk immediately. If set, the store will attempt to flush changes to disk at a
+	// maximum of the specified interval.
+	SyncInterval time.Duration
 }
 
 func WithNoSync() Option {
 	return func(config *Config) {
-		config.NoSync = true
+		config.SyncInterval = math.MaxInt64
+	}
+}
+
+func WithSyncInterval(interval time.Duration) Option {
+	return func(config *Config) {
+		config.SyncInterval = interval
 	}
 }
 

@@ -21,13 +21,15 @@ package bbolt
 import (
 	"bytes"
 	"context"
-	"os"
-	"path"
-
+	"fmt"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
 	"go.etcd.io/bbolt"
+	"os"
+	"path"
+	"sync/atomic"
+	"time"
 )
 
 var _ stoabs.ReadTx = (*bboltTx)(nil)
@@ -43,10 +45,8 @@ func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, e
 	}
 
 	bboltOpts := *bbolt.DefaultOptions
-	if cfg.NoSync {
+	if cfg.SyncInterval != 0 {
 		bboltOpts.NoSync = true
-		bboltOpts.NoFreelistSync = true
-		bboltOpts.NoGrowSync = true
 	}
 	return createBBoltStore(filePath, &bboltOpts, cfg)
 }
@@ -66,20 +66,44 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	} else {
 		log = logrus.StandardLogger()
 	}
-	return &bboltStore{
-		db:  db,
-		log: log,
-	}, nil
+	result := &bboltStore{
+		db:       db,
+		log:      log,
+		mustSync: &atomic.Value{},
+	}
+	result.mustSync.Store(false)
+	result.ctx, result.cancelCtx = context.WithCancel(context.Background())
+	if cfg.SyncInterval > 0 {
+		result.startSync(cfg.SyncInterval)
+	}
+	return result, nil
 }
 
 type bboltStore struct {
-	db  *bbolt.DB
-	log *logrus.Logger
+	db        *bbolt.DB
+	log       *logrus.Logger
+	mustSync  *atomic.Value
+	ctx       context.Context
+	cancelCtx context.CancelFunc
 }
 
 func (b bboltStore) Close(ctx context.Context) error {
+	// Close BBolt and wait for it to finish
 	closeError := make(chan error)
 	go func() {
+		// Explicitly flush to assert all changes have been
+		if b.mustSync.Load().(bool) {
+			err := b.db.Sync()
+			if err != nil {
+				closeError <- fmt.Errorf("could not flush to disk: %w", err)
+				return
+			}
+		}
+
+		// Signal internal processes to end
+		b.cancelCtx()
+
+		// Then close db
 		closeError <- b.db.Close()
 	}()
 	select {
@@ -148,6 +172,8 @@ func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice [
 		}
 		return appError
 	}
+	// Signal the write to be flushed to disk
+	b.mustSync.Store(true)
 	// Observe result, commit/rollback
 	if appError == nil {
 		b.log.Trace("Committing BBolt transaction")
@@ -168,6 +194,26 @@ func (b bboltStore) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice [
 	}
 
 	return nil
+}
+
+func (b bboltStore) startSync(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	stop := b.ctx.Done()
+	go func(mustSync *atomic.Value, db *bbolt.DB) {
+		for {
+			select {
+			case _ = <-ticker.C:
+				if b.mustSync.Swap(false).(bool) {
+					err := b.db.Sync()
+					if err != nil {
+						b.log.WithError(err).Error("Failed to sync to disk")
+					}
+				}
+			case _ = <-stop:
+				return
+			}
+		}
+	}(b.mustSync, b.db)
 }
 
 type bboltTx struct {
