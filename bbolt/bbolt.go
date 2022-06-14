@@ -51,7 +51,7 @@ func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, e
 	return createBBoltStore(filePath, &bboltOpts, cfg)
 }
 
-func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config) (*Store, error) {
+func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config) (stoabs.KVStore, error) {
 	err := os.MkdirAll(path.Dir(filePath), os.ModePerm) // TODO: Right permissions?
 	if err != nil {
 		return nil, err
@@ -60,24 +60,29 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	if err != nil {
 		return nil, err
 	}
+
+	return WrapBBolt(db, cfg), nil
+}
+
+func WrapBBolt(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	var log *logrus.Logger
 	if cfg.Log != nil {
 		log = cfg.Log
 	} else {
 		log = logrus.StandardLogger()
 	}
-	return &Store{
+	return &store{
 		db:  db,
 		log: log,
-	}, nil
+	}
 }
 
-type Store struct {
+type store struct {
 	db  *bbolt.DB
 	log *logrus.Logger
 }
 
-func (b Store) Close(ctx context.Context) error {
+func (b store) Close(ctx context.Context) error {
 	closeError := make(chan error)
 	go func() {
 		closeError <- b.db.Close()
@@ -93,19 +98,19 @@ func (b Store) Close(ctx context.Context) error {
 	}
 }
 
-func (b Store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+func (b store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, true, opts)
 }
 
-func (b Store) Read(fn func(stoabs.ReadTx) error) error {
+func (b store) Read(fn func(stoabs.ReadTx) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		return fn(&bboltTx{tx: tx})
 	}, false, nil)
 }
 
-func (b Store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error) error {
+func (b store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		shelf, err := bboltTx{tx: tx}.GetShelfWriter(shelfName)
 		if err != nil {
@@ -115,7 +120,7 @@ func (b Store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error)
 	}, true, nil)
 }
 
-func (b Store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) error {
+func (b store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
 		shelf, err := bboltTx{tx: tx}.GetShelfReader(shelfName)
 		if err != nil {
@@ -128,7 +133,7 @@ func (b Store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) 
 	}, false, nil)
 }
 
-func (b Store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
+func (b store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
 	opts := stoabs.TxOptions(optsSlice)
 
 	// Start transaction, retrieve/create shelf to operate on
