@@ -64,6 +64,7 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	return WrapBBolt(db, cfg), nil
 }
 
+// WrapBBolt creates a KVStore using an existing bbolt.DB
 func WrapBBolt(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	var log *logrus.Logger
 	if cfg.Log != nil {
