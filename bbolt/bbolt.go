@@ -194,6 +194,10 @@ func (b bboltTx) getBucket(shelfName string) (stoabs.Reader, error) {
 	return &bboltShelf{bucket: bucket}, nil
 }
 
+func (b bboltTx) AfterCommit(fn func()) {
+	b.tx.OnCommit(fn)
+}
+
 type bboltShelf struct {
 	bucket *bbolt.Bucket
 }

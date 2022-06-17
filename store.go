@@ -147,6 +147,8 @@ type WriteTx interface {
 	ReadTx
 	// GetShelfWriter returns the specified shelf for writing. If it doesn't exist, it will be created.
 	GetShelfWriter(shelfName string) (Writer, error)
+	// AfterCommit adds an afterCommit function to the active transaction
+	AfterCommit(fn func())
 }
 
 // ReadTx is used to read from a KVStore.

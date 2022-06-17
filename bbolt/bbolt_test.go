@@ -120,6 +120,37 @@ func TestBBolt_Write(t *testing.T) {
 		assert.False(t, afterCommitCalled)
 		assert.True(t, onRollbackCalled)
 	})
+	t.Run("additional afterCommit added on writeTx", func(t *testing.T) {
+		store, _ := createStore(t)
+
+		var actual []byte
+		var innerError error
+		var onRollbackCalled bool
+
+		err := store.Write(func(tx stoabs.WriteTx) error {
+			tx.AfterCommit(func() {
+				// Happens after commit, so we should be able to read the data now
+				innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+					actual, innerError = reader.Get(stoabs.BytesKey(key))
+					return innerError
+				})
+				if innerError != nil {
+					t.Fatal(innerError)
+				}
+			})
+			writer, err := tx.GetShelfWriter(shelf)
+			if err != nil {
+				return err
+			}
+			return writer.Put(stoabs.BytesKey(key), value)
+		}, stoabs.OnRollback(func() {
+			onRollbackCalled = true
+		}))
+
+		assert.NoError(t, err)
+		assert.Equal(t, value, actual)
+		assert.False(t, onRollbackCalled)
+	})
 }
 
 func TestBBolt_Read(t *testing.T) {
