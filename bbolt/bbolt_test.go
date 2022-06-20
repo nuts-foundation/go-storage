@@ -319,6 +319,36 @@ func TestBboltShelf_Range(t *testing.T) {
 	})
 }
 
+func TestBBoltShelf_Stats(t *testing.T) {
+	store, _ := createStore(t)
+
+	t.Run("empty", func(t *testing.T) {
+		stats := getStats(store, shelf)
+		assert.Equal(t, uint(0), stats.NumEntries)
+		assert.Equal(t, uint(0), stats.ShelfSize)
+	})
+
+	t.Run("non-empty", func(t *testing.T) {
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
+		})
+
+		stats := getStats(store, shelf)
+
+		assert.Equal(t, uint(1), stats.NumEntries)
+		assert.Less(t, uint(0), stats.ShelfSize)
+	})
+}
+
+func getStats(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
+	var stats stoabs.ShelfStats
+	_ = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+		stats = reader.Stats()
+		return nil
+	})
+	return stats
+}
+
 func TestBBolt_Close(t *testing.T) {
 	t.Run("close closed store", func(t *testing.T) {
 		store, _ := createStore(t)
