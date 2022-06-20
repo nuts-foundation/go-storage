@@ -64,6 +64,8 @@ func WithLogger(log *logrus.Logger) Option {
 type ShelfStats struct {
 	// NumEntries holds the number of entries in the shelf.
 	NumEntries uint
+	// ShelfSize holds the current shelf size in bytes.
+	ShelfSize uint
 }
 
 // CallerFn is the function type which is called for each key value pair when using Iterate() or Range()

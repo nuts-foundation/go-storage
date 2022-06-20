@@ -225,6 +225,7 @@ func (t bboltShelf) Delete(key stoabs.Key) error {
 func (t bboltShelf) Stats() stoabs.ShelfStats {
 	return stoabs.ShelfStats{
 		NumEntries: uint(t.bucket.Stats().KeyN),
+		ShelfSize:  uint(t.bucket.Tx().Size()),
 	}
 }
 
