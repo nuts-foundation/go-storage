@@ -21,6 +21,7 @@ package bbolt
 import (
 	"context"
 	"errors"
+	"go.etcd.io/bbolt"
 	"path"
 	"testing"
 
@@ -335,7 +336,9 @@ func TestBBolt_Close(t *testing.T) {
 }
 
 func createStore(t *testing.T) (stoabs.KVStore, error) {
-	store, err := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
+	opts := *bbolt.DefaultOptions
+	opts.NoSync = true
+	store, err := createBBoltStore(&opts, Config{Path: path.Join(util.TestDirectory(t), "bbolt.db")})
 	t.Cleanup(func() {
 		store.Close(context.Background())
 	})

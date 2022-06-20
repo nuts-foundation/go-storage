@@ -35,28 +35,12 @@ var _ stoabs.WriteTx = (*bboltTx)(nil)
 var _ stoabs.Reader = (*bboltShelf)(nil)
 var _ stoabs.Writer = (*bboltShelf)(nil)
 
-// CreateBBoltStore creates a new BBolt-backed KV store.
-func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	bboltOpts := *bbolt.DefaultOptions
-	if cfg.NoSync {
-		bboltOpts.NoSync = true
-		bboltOpts.NoFreelistSync = true
-		bboltOpts.NoGrowSync = true
-	}
-	return createBBoltStore(filePath, &bboltOpts, cfg)
-}
-
-func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config) (*bboltStore, error) {
-	err := os.MkdirAll(path.Dir(filePath), os.ModePerm) // TODO: Right permissions?
+func createBBoltStore(options *bbolt.Options, cfg Config) (*bboltStore, error) {
+	err := os.MkdirAll(path.Dir(cfg.Path), os.FileMode(cfg.FileMode))
 	if err != nil {
 		return nil, err
 	}
-	db, err := bbolt.Open(filePath, os.FileMode(0640), options) // TODO: Right permissions?
+	db, err := bbolt.Open(cfg.Path, os.FileMode(cfg.FileMode), options)
 	if err != nil {
 		return nil, err
 	}

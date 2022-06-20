@@ -21,9 +21,15 @@ package stoabs
 import (
 	"context"
 	"errors"
+	"flag"
 
 	"github.com/sirupsen/logrus"
 )
+
+type Adapter interface {
+	FlagSet() *flag.FlagSet
+	CreateStore(config map[string]interface{}) (KVStore, error)
+}
 
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
@@ -44,14 +50,7 @@ type KVStore interface {
 type Option func(config *Config)
 
 type Config struct {
-	Log    *logrus.Logger
-	NoSync bool
-}
-
-func WithNoSync() Option {
-	return func(config *Config) {
-		config.NoSync = true
-	}
+	Log *logrus.Logger
 }
 
 func WithLogger(log *logrus.Logger) Option {
