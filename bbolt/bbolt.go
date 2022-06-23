@@ -181,6 +181,10 @@ type bboltTx struct {
 	tx    *bbolt.Tx
 }
 
+func (b bboltTx) Unwrap() interface{} {
+	return b.tx
+}
+
 func (b bboltTx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
 	return b.getBucket(shelfName)
 }

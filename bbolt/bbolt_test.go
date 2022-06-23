@@ -21,6 +21,7 @@ package bbolt
 import (
 	"context"
 	"errors"
+	"go.etcd.io/bbolt"
 	"path"
 	"testing"
 
@@ -146,6 +147,18 @@ func TestBBolt_Read(t *testing.T) {
 		})
 		assert.NoError(t, err)
 	})
+}
+
+func TestBBolt_Unwrap(t *testing.T) {
+	store, _ := createStore(t)
+
+	var tx interface{}
+	_ = store.Read(func(innerTx stoabs.ReadTx) error {
+		tx = innerTx.Unwrap()
+		return nil
+	})
+	_, ok := tx.(*bbolt.Tx)
+	assert.True(t, ok)
 }
 
 func TestBBolt_WriteShelf(t *testing.T) {
