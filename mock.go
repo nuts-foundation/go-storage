@@ -410,6 +410,20 @@ func (mr *MockWriteTxMockRecorder) GetShelfWriter(shelfName interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShelfWriter", reflect.TypeOf((*MockWriteTx)(nil).GetShelfWriter), shelfName)
 }
 
+// Store mocks base method.
+func (m *MockWriteTx) Store() KVStore {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Store")
+	ret0, _ := ret[0].(KVStore)
+	return ret0
+}
+
+// Store indicates an expected call of Store.
+func (mr *MockWriteTxMockRecorder) Store() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Store", reflect.TypeOf((*MockWriteTx)(nil).Store))
+}
+
 // MockReadTx is a mock of ReadTx interface.
 type MockReadTx struct {
 	ctrl     *gomock.Controller
@@ -446,4 +460,18 @@ func (m *MockReadTx) GetShelfReader(shelfName string) (Reader, error) {
 func (mr *MockReadTxMockRecorder) GetShelfReader(shelfName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShelfReader", reflect.TypeOf((*MockReadTx)(nil).GetShelfReader), shelfName)
+}
+
+// Store mocks base method.
+func (m *MockReadTx) Store() KVStore {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Store")
+	ret0, _ := ret[0].(KVStore)
+	return ret0
+}
+
+// Store indicates an expected call of Store.
+func (mr *MockReadTxMockRecorder) Store() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Store", reflect.TypeOf((*MockReadTx)(nil).Store))
 }
