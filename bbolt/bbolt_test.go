@@ -120,6 +120,13 @@ func TestBBolt_Write(t *testing.T) {
 		assert.False(t, afterCommitCalled)
 		assert.True(t, onRollbackCalled)
 	})
+	t.Run("store is set on transaction", func(t *testing.T) {
+		store, _ := createStore(t)
+		_ = store.Write(func(tx stoabs.WriteTx) error {
+			assert.True(t, tx.Store() == store)
+			return nil
+		})
+	})
 }
 
 func TestBBolt_Read(t *testing.T) {

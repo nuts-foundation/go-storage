@@ -77,11 +77,11 @@ type Reader interface {
 	Get(key Key) ([]byte, error)
 	// Iterate walks over all key/value pairs for this shelf. Ordering is not guaranteed.
 	Iterate(callback CallerFn) error
-	// Stats returns statistics about the shelf.
-	Stats() ShelfStats
 	// Range calls the callback for each key/value pair on this shelf from (inclusive) and to (exclusive) given keys.
 	// Ordering is guaranteed and determined by the type of Key given.
 	Range(from Key, to Key, callback CallerFn) error
+	// Stats returns statistics about the shelf.
+	Stats() ShelfStats
 }
 
 // Writer is used to write to a shelf.
@@ -155,4 +155,6 @@ type WriteTx interface {
 type ReadTx interface {
 	// GetShelfReader returns the specified shelf for reading. If it doesn't exist, nil is returned.
 	GetShelfReader(shelfName string) (Reader, error)
+	// Store returns the KVStore on which the transaction is started
+	Store() KVStore
 }
