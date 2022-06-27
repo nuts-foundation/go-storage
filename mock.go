@@ -424,6 +424,20 @@ func (mr *MockWriteTxMockRecorder) Store() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Store", reflect.TypeOf((*MockWriteTx)(nil).Store))
 }
 
+// Unwrap mocks base method.
+func (m *MockWriteTx) Unwrap() interface{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unwrap")
+	ret0, _ := ret[0].(interface{})
+	return ret0
+}
+
+// Unwrap indicates an expected call of Unwrap.
+func (mr *MockWriteTxMockRecorder) Unwrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwrap", reflect.TypeOf((*MockWriteTx)(nil).Unwrap))
+}
+
 // MockReadTx is a mock of ReadTx interface.
 type MockReadTx struct {
 	ctrl     *gomock.Controller
@@ -474,4 +488,18 @@ func (m *MockReadTx) Store() KVStore {
 func (mr *MockReadTxMockRecorder) Store() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Store", reflect.TypeOf((*MockReadTx)(nil).Store))
+}
+
+// Unwrap mocks base method.
+func (m *MockReadTx) Unwrap() interface{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unwrap")
+	ret0, _ := ret[0].(interface{})
+	return ret0
+}
+
+// Unwrap indicates an expected call of Unwrap.
+func (mr *MockReadTxMockRecorder) Unwrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwrap", reflect.TypeOf((*MockReadTx)(nil).Unwrap))
 }
