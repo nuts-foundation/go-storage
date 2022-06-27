@@ -157,4 +157,6 @@ type ReadTx interface {
 	GetShelfReader(shelfName string) (Reader, error)
 	// Store returns the KVStore on which the transaction is started
 	Store() KVStore
+	// Unwrap returns the underlying, database specific transaction object. If not supported, it returns nil.
+	Unwrap() interface{}
 }
