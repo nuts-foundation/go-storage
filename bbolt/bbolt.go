@@ -23,6 +23,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"time"
 
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
@@ -34,6 +35,10 @@ var _ stoabs.ReadTx = (*bboltTx)(nil)
 var _ stoabs.WriteTx = (*bboltTx)(nil)
 var _ stoabs.Reader = (*bboltShelf)(nil)
 var _ stoabs.Writer = (*bboltShelf)(nil)
+
+const defaultFileTimeout = 5 * time.Second
+
+var fileTimeout = defaultFileTimeout
 
 // CreateBBoltStore creates a new BBolt-backed KV store.
 func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
@@ -56,7 +61,26 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	if err != nil {
 		return nil, err
 	}
+
+	// log warning if file opening hangs
+	done := make(chan bool, 1)
+	if cfg.Log != nil {
+		ticker := time.NewTicker(fileTimeout)
+		go func() {
+			for {
+				select {
+				case <-done:
+					ticker.Stop()
+					return
+				case <-ticker.C:
+					cfg.Log.Warnf("trying to open %s, but file appears to be locked", filePath)
+				}
+			}
+		}()
+	}
+
 	db, err := bbolt.Open(filePath, os.FileMode(0640), options) // TODO: Right permissions?
+	done <- true
 	if err != nil {
 		return nil, err
 	}
