@@ -2,7 +2,7 @@ package redis7
 
 import (
 	"context"
-	"github.com/go-redis/redis/v9"
+	"github.com/go-redis/redis/v8"
 	"github.com/nuts-foundation/go-stoabs"
 	"strings"
 )
@@ -90,7 +90,7 @@ func (s shelf) Delete(key stoabs.Key) error {
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 	// TODO: Should context be passable?
 	result, err := s.client.Get(context.Background(), s.getRedisKey(key)).Result()
-	if err != redis.Nil {
+	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
 		return nil, err

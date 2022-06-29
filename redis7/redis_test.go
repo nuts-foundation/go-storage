@@ -2,7 +2,7 @@ package redis7
 
 import (
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v9"
+	"github.com/go-redis/redis/v8"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/kvtests"
 	"testing"
