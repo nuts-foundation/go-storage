@@ -10,6 +10,8 @@ import (
 	"sync"
 )
 
+const scanResultCount = 100
+
 var _ stoabs.KVStore = (*store)(nil)
 var _ stoabs.ReadTx = (*tx)(nil)
 var _ stoabs.WriteTx = (*tx)(nil)
@@ -120,7 +122,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.client.Scan(context.TODO(), cursor, s.name+"*", 100)
+		scanCmd := s.client.Scan(context.TODO(), cursor, s.name+"*", scanResultCount)
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -155,8 +157,10 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) e
 }
 
 func (s shelf) Stats() stoabs.ShelfStats {
-	//TODO implement me
-	panic("implement me")
+	return stoabs.ShelfStats{
+		NumEntries: 0,
+		ShelfSize:  0,
+	}
 }
 
 func (s shelf) toRedisKey(key stoabs.Key) string {
