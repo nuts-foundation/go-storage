@@ -12,13 +12,14 @@ func TestRedis(t *testing.T) {
 	s := miniredis.RunT(t)
 	defer s.Close()
 
-	provider := func() (stoabs.KVStore, error) {
+	provider := func(_ *testing.T) (stoabs.KVStore, error) {
 		return CreateRedisStore(&redis.Options{
 			Addr: s.Addr(),
 		})
 	}
 
+	kvtests.TestClose(t, provider)
+	kvtests.TestIterate(t, provider)
 	kvtests.TestReadingAndWriting(t, provider)
 	kvtests.TestRange(t, provider)
-	kvtests.TestIterate(t, provider)
 }

@@ -108,19 +108,9 @@ type store struct {
 }
 
 func (b *store) Close(ctx context.Context) error {
-	closeError := make(chan error)
-	go func() {
-		closeError <- b.db.Close()
-	}()
-	select {
-	case <-ctx.Done():
-		// Timeout
+	return util.CallWithTimeout(ctx, b.db.Close, func() {
 		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
-		return ctx.Err()
-	case err := <-closeError:
-		// BBolt store closed, err may be nil if closed successfully
-		return err
-	}
+	})
 }
 
 func (b *store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {

@@ -4,7 +4,10 @@ import (
 	"context"
 	"github.com/go-redis/redis/v8"
 	"github.com/nuts-foundation/go-stoabs"
+	"github.com/nuts-foundation/go-stoabs/util"
+	"github.com/sirupsen/logrus"
 	"strings"
+	"sync"
 )
 
 var _ stoabs.KVStore = (*store)(nil)
@@ -16,24 +19,38 @@ var _ stoabs.Writer = (*shelf)(nil)
 func CreateRedisStore(opts *redis.Options) (stoabs.KVStore, error) {
 	client := redis.NewClient(opts)
 	// TODO: actually test the connection?
-	return &store{client: client}, nil
+	result := &store{client: client}
+	// TODO: Use options
+	result.log = logrus.StandardLogger()
+	return result, nil
 }
 
 type store struct {
 	client *redis.Client
+	log    *logrus.Logger
+	mux    *sync.Mutex
 }
 
-func (s store) Close(ctx context.Context) error {
-	// TODO: Use context, wait for done (timeout)
-	return s.client.Close()
+func (s *store) Close(ctx context.Context) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	if s.client == nil {
+		// already closed
+		return nil
+	}
+	err := util.CallWithTimeout(ctx, s.client.Close, func() {
+		s.log.Error("Closing of Redis client timed out")
+	})
+	s.client = nil
+	return err
 }
 
 func (s store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
-	return fn(&tx{client: s.client})
+	return fn(&tx{client: s.client, store: &s})
 }
 
 func (s store) Read(fn func(stoabs.ReadTx) error) error {
-	return fn(&tx{client: s.client})
+	return fn(&tx{client: s.client, store: &s})
 }
 
 func (s store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error {
@@ -46,6 +63,7 @@ func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
 
 type tx struct {
 	client *redis.Client
+	store  stoabs.KVStore
 }
 
 func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
@@ -63,8 +81,7 @@ func (t tx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
 }
 
 func (t tx) Store() stoabs.KVStore {
-	//TODO implement me
-	panic("implement me")
+	return t.store
 }
 
 func (t tx) Unwrap() interface{} {

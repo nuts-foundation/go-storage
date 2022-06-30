@@ -22,8 +22,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nuts-foundation/go-stoabs/kvtests"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"go.etcd.io/bbolt"
 	"path"
 	"path/filepath"
 	"testing"
@@ -39,6 +41,17 @@ var key = []byte{1, 2, 3}
 var value = []byte{4, 5, 6}
 
 const shelf = "test"
+
+func TestBBolt(t *testing.T) {
+	provider := func(t *testing.T) (stoabs.KVStore, error) {
+		return CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
+	}
+
+	kvtests.TestReadingAndWriting(t, provider)
+	kvtests.TestRange(t, provider)
+	kvtests.TestIterate(t, provider)
+	kvtests.TestClose(t, provider)
+}
 
 func TestBBolt_Write(t *testing.T) {
 	t.Run("write, then read", func(t *testing.T) {
@@ -231,62 +244,6 @@ func TestBBolt_ReadShelf(t *testing.T) {
 	})
 }
 
-func TestBboltShelf_Iterate(t *testing.T) {
-	t.Run("iterates over all keys", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		// Write some data
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			_ = writer.Put(stoabs.BytesKey(value), key)
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-
-		var keys, values [][]byte
-		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
-				keys = append(keys, key.Bytes())
-				values = append(values, value)
-				return nil
-			})
-
-			return err
-		})
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, keys, 2) {
-			return
-		}
-		if !assert.Len(t, values, 2) {
-			return
-		}
-		// this ordering is how bbolt is sorted: binary tree
-		assert.Equal(t, key, keys[0])
-		assert.Equal(t, value, keys[1])
-		assert.Equal(t, value, values[0])
-		assert.Equal(t, key, values[1])
-	})
-
-	t.Run("error", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		// Write some data otherwise shelf is empty and no error can be returned
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-
-		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
-				return errors.New("failure")
-			})
-
-			return err
-		})
-		assert.EqualError(t, err, "failure")
-	})
-}
-
 func TestBboltShelf_Range(t *testing.T) {
 	t.Run("returns correct key/values", func(t *testing.T) {
 		store, _ := createStore(t)
@@ -373,21 +330,6 @@ func getStats(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
 		return nil
 	})
 	return stats
-}
-
-func TestBBolt_Close(t *testing.T) {
-	t.Run("close closed store", func(t *testing.T) {
-		store, _ := createStore(t)
-		assert.NoError(t, store.Close(context.Background()))
-		assert.NoError(t, store.Close(context.Background()))
-	})
-	t.Run("timeout", func(t *testing.T) {
-		store, _ := createStore(t)
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		err := store.Close(ctx)
-		assert.Equal(t, err, context.Canceled)
-	})
 }
 
 func createStore(t *testing.T) (stoabs.KVStore, error) {

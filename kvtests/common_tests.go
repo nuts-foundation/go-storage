@@ -18,7 +18,7 @@ const stringValue = "Hello, World!"
 
 const shelf = "test"
 
-type StoreProvider func() (stoabs.KVStore, error)
+type StoreProvider func(t *testing.T) (stoabs.KVStore, error)
 
 func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 	t.Run("read/write", func(t *testing.T) {
@@ -218,8 +218,25 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 	})
 }
 
+func TestClose(t *testing.T, storeProvider StoreProvider) {
+	t.Run("Close()", func(t *testing.T) {
+		t.Run("close closed store", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			assert.NoError(t, store.Close(context.Background()))
+			assert.NoError(t, store.Close(context.Background()))
+		})
+		t.Run("timeout", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			err := store.Close(ctx)
+			assert.Equal(t, err, context.Canceled)
+		})
+	})
+}
+
 func createStore(t *testing.T, provider StoreProvider) stoabs.KVStore {
-	store, err := provider()
+	store, err := provider(t)
 	if !assert.NoError(t, err) {
 		t.Fatalf("Unable to create store: %s", err)
 	}
