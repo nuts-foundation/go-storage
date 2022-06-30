@@ -415,7 +415,7 @@ func TestBBolt_CreateBBoltStore(t *testing.T) {
 
 		// create second store
 		go func() {
-			store2, _ := CreateBBoltStore(filename, stoabs.WithLogger(logger))
+			store2, _ := CreateBBoltStore(filename, stoabs.WithLogger(logger)) // hangs while store1 is open
 			_ = store2.Close(context.Background())
 		}()
 
@@ -426,7 +426,7 @@ func TestBBolt_CreateBBoltStore(t *testing.T) {
 			return lastEntry != nil, nil
 		}, 100*fileTimeout, "time-out while waiting for log message")
 
-		assert.Equal(t, fmt.Sprintf("trying to open %s, but file appears to be locked", filename), lastEntry.Message)
+		assert.Equal(t, fmt.Sprintf("Trying to open %s, but file appears to be locked", filename), lastEntry.Message)
 		assert.Equal(t, logrus.WarnLevel, lastEntry.Level)
 	})
 }

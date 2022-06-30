@@ -63,21 +63,20 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	}
 
 	// log warning if file opening hangs
+	cfg.Log = getLogger(cfg)
 	done := make(chan bool, 1)
-	if cfg.Log != nil {
-		ticker := time.NewTicker(fileTimeout)
-		go func() {
-			for {
-				select {
-				case <-done:
-					ticker.Stop()
-					return
-				case <-ticker.C:
-					cfg.Log.Warnf("trying to open %s, but file appears to be locked", filePath)
-				}
+	ticker := time.NewTicker(fileTimeout)
+	go func() {
+		for {
+			select {
+			case <-done:
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				cfg.Log.Warnf("Trying to open %s, but file appears to be locked", filePath)
 			}
-		}()
-	}
+		}
+	}()
 
 	db, err := bbolt.Open(filePath, os.FileMode(0640), options) // TODO: Right permissions?
 	done <- true
@@ -90,16 +89,17 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 
 // Wrap creates a KVStore using an existing bbolt.DB
 func Wrap(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
-	var log *logrus.Logger
-	if cfg.Log != nil {
-		log = cfg.Log
-	} else {
-		log = logrus.StandardLogger()
-	}
 	return &store{
 		db:  db,
-		log: log,
+		log: getLogger(cfg),
 	}
+}
+
+func getLogger(cfg stoabs.Config) *logrus.Logger {
+	if cfg.Log != nil {
+		return cfg.Log
+	}
+	return stoabs.DefaultLogger()
 }
 
 type store struct {
