@@ -98,15 +98,15 @@ type shelf struct {
 }
 
 func (s shelf) Put(key stoabs.Key, value []byte) error {
-	return s.client.Set(context.TODO(), s.getRedisKey(key), value, 0).Err()
+	return s.client.Set(context.TODO(), s.toRedisKey(key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.client.Del(context.TODO(), s.getRedisKey(key)).Err()
+	return s.client.Del(context.TODO(), s.toRedisKey(key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	result, err := s.client.Get(context.TODO(), s.getRedisKey(key)).Result()
+	result, err := s.client.Get(context.TODO(), s.toRedisKey(key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -135,7 +135,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 				// Value does not exist (anymore), or not a string
 				continue
 			}
-			err = callback(stoabs.BytesKey(key), []byte(values[i].(string)))
+			err = callback(s.fromRedisKey(stoabs.BytesKey(key)), []byte(values[i].(string)))
 			if err != nil {
 				// Callback returned an error, stop iterate and return it
 				return err
@@ -159,6 +159,10 @@ func (s shelf) Stats() stoabs.ShelfStats {
 	panic("implement me")
 }
 
-func (s shelf) getRedisKey(key stoabs.Key) string {
-	return strings.Join([]string{s.name, key.String()}, ".")
+func (s shelf) toRedisKey(key stoabs.Key) string {
+	return strings.Join([]string{s.name, string(key.Bytes())}, ".")
+}
+
+func (s shelf) fromRedisKey(key stoabs.Key) stoabs.Key {
+	return stoabs.BytesKey(strings.TrimPrefix(string(key.Bytes()), s.name+"."))
 }

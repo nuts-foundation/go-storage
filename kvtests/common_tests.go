@@ -9,7 +9,7 @@ import (
 )
 
 var bytesKey = []byte{1, 2, 3}
-var bytesValue = []byte{4, 5, 6}
+var bytesValue = stoabs.BytesKey(bytesKey).Next().Bytes()
 var largerBytesKey = []byte{4, 5, 6}
 var largerBytesValue = []byte{100, 101, 102}
 
@@ -192,11 +192,11 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 		if !assert.Len(t, values, 2) {
 			return
 		}
-		// this ordering is how bbolt is sorted: binary tree
-		assert.Equal(t, bytesKey, keys[0])
-		assert.Equal(t, bytesValue, keys[1])
-		assert.Equal(t, largerBytesKey, values[0])
-		assert.Equal(t, largerBytesValue, values[1])
+
+		assert.Contains(t, keys, bytesKey)
+		assert.Contains(t, keys, largerBytesKey)
+		assert.Contains(t, values, bytesValue)
+		assert.Contains(t, values, largerBytesValue)
 	})
 
 	t.Run("error", func(t *testing.T) {
