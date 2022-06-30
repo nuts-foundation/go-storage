@@ -19,7 +19,10 @@ var _ stoabs.Writer = (*shelf)(nil)
 func CreateRedisStore(opts *redis.Options) (stoabs.KVStore, error) {
 	client := redis.NewClient(opts)
 	// TODO: actually test the connection?
-	result := &store{client: client}
+	result := &store{
+		client: client,
+		mux:    &sync.Mutex{},
+	}
 	// TODO: Use options
 	result.log = logrus.StandardLogger()
 	return result, nil
