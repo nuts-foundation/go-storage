@@ -160,9 +160,11 @@ func (s shelf) Stats() stoabs.ShelfStats {
 }
 
 func (s shelf) toRedisKey(key stoabs.Key) string {
+	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	return strings.Join([]string{s.name, string(key.Bytes())}, ".")
 }
 
 func (s shelf) fromRedisKey(key stoabs.Key) stoabs.Key {
+	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	return stoabs.BytesKey(strings.TrimPrefix(string(key.Bytes()), s.name+"."))
 }

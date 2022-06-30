@@ -67,7 +67,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			assert.Equal(t, stringValue, string(actual))
 		})
 
-		t.Run("read from non-existing shelf", func(t *testing.T) {
+		t.Run("ReadShelf for non-existing shelf", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
 			called := false
@@ -79,6 +79,24 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			assert.NoError(t, err)
 			assert.False(t, called)
 		})
+
+		t.Run("GetShelfReader for non-existing shelf", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			err := store.Read(func(tx stoabs.ReadTx) error {
+				bucket, err := tx.GetShelfReader(shelf)
+				if err != nil {
+					return err
+				}
+				if bucket == nil {
+					return nil
+				}
+				t.Fatal()
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+
 		t.Run("read non-existing key", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
@@ -232,6 +250,35 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			err := store.Close(ctx)
 			assert.Equal(t, err, context.Canceled)
 		})
+	})
+}
+
+func TestStats(t *testing.T, storeProvider StoreProvider) {
+	store := createStore(t, storeProvider)
+	getStats := func(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
+		var stats stoabs.ShelfStats
+		_ = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			stats = reader.Stats()
+			return nil
+		})
+		return stats
+	}
+
+	t.Run("empty", func(t *testing.T) {
+		stats := getStats(store, shelf)
+		assert.Equal(t, uint(0), stats.NumEntries)
+		assert.Equal(t, uint(0), stats.ShelfSize)
+	})
+
+	t.Run("non-empty", func(t *testing.T) {
+		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
+		})
+
+		stats := getStats(store, shelf)
+
+		assert.Equal(t, uint(1), stats.NumEntries)
+		assert.Less(t, uint(0), stats.ShelfSize)
 	})
 }
 

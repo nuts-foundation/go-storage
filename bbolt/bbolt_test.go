@@ -51,29 +51,10 @@ func TestBBolt(t *testing.T) {
 	kvtests.TestRange(t, provider)
 	kvtests.TestIterate(t, provider)
 	kvtests.TestClose(t, provider)
+	kvtests.TestStats(t, provider)
 }
 
 func TestBBolt_Write(t *testing.T) {
-	t.Run("write, then read", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		err := store.Write(func(tx stoabs.WriteTx) error {
-			writer, err := tx.GetShelfWriter(shelf)
-			if err != nil {
-				return err
-			}
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-
-		var actual []byte
-		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(stoabs.BytesKey(key))
-			return err
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, value, actual)
-	})
-
 	t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
 		store, _ := createStore(t)
 
@@ -148,26 +129,6 @@ func TestBBolt_Write(t *testing.T) {
 	})
 }
 
-func TestBBolt_Read(t *testing.T) {
-	t.Run("non-existing shelf", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		err := store.Read(func(tx stoabs.ReadTx) error {
-			bucket := tx.GetShelfReader(shelf)
-			value, err := bucket.Get(stoabs.BytesKey("key"))
-			if err != nil {
-				return err
-			}
-			if value == nil {
-				return nil
-			}
-			t.Fatal()
-			return nil
-		})
-		assert.NoError(t, err)
-	})
-}
-
 func TestBBolt_Unwrap(t *testing.T) {
 	store, _ := createStore(t)
 
@@ -181,29 +142,6 @@ func TestBBolt_Unwrap(t *testing.T) {
 }
 
 func TestBBolt_WriteShelf(t *testing.T) {
-	t.Run("write, then read", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		// First write
-		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		// Now read
-		var actual []byte
-		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(stoabs.BytesKey(key))
-			return err
-		})
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		assert.Equal(t, value, actual)
-	})
 	t.Run("rollback on application error", func(t *testing.T) {
 		store, _ := createStore(t)
 
@@ -226,21 +164,6 @@ func TestBBolt_WriteShelf(t *testing.T) {
 			return
 		}
 		assert.Nil(t, actual)
-	})
-}
-
-func TestBBolt_ReadShelf(t *testing.T) {
-	t.Run("read from non-existing shelf", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		called := false
-		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			called = true
-			return nil
-		})
-
-		assert.NoError(t, err)
-		assert.True(t, called)
 	})
 }
 
@@ -299,27 +222,6 @@ func TestBboltShelf_Range(t *testing.T) {
 		})
 
 		assert.EqualError(t, err, "failure")
-	})
-}
-
-func TestBBoltShelf_Stats(t *testing.T) {
-	store, _ := createStore(t)
-
-	t.Run("empty", func(t *testing.T) {
-		stats := getStats(store, shelf)
-		assert.Equal(t, uint(0), stats.NumEntries)
-		assert.Equal(t, uint(0), stats.ShelfSize)
-	})
-
-	t.Run("non-empty", func(t *testing.T) {
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
-		})
-
-		stats := getStats(store, shelf)
-
-		assert.Equal(t, uint(1), stats.NumEntries)
-		assert.Less(t, uint(0), stats.ShelfSize)
 	})
 }
 
