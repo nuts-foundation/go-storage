@@ -78,18 +78,15 @@ type shelf struct {
 }
 
 func (s shelf) Put(key stoabs.Key, value []byte) error {
-	// TODO: Should context be passable?
-	return s.client.Set(context.Background(), s.getRedisKey(key), value, 0).Err()
+	return s.client.Set(context.TODO(), s.getRedisKey(key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	// TODO: Should context be passable?
-	return s.client.Del(context.Background(), s.getRedisKey(key)).Err()
+	return s.client.Del(context.TODO(), s.getRedisKey(key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	// TODO: Should context be passable?
-	result, err := s.client.Get(context.Background(), s.getRedisKey(key)).Result()
+	result, err := s.client.Get(context.TODO(), s.getRedisKey(key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -99,8 +96,37 @@ func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 }
 
 func (s shelf) Iterate(callback stoabs.CallerFn) error {
-	//TODO implement me
-	panic("implement me")
+	var cursor uint64
+	var err error
+	var keys []string
+	for {
+		scanCmd := s.client.Scan(context.TODO(), cursor, s.name+"*", 100)
+		keys, cursor, err = scanCmd.Result()
+		if err != nil {
+			return err
+		}
+		getCmd := s.client.MGet(context.Background(), keys...)
+		values, err := getCmd.Result()
+		if err != nil {
+			return err
+		}
+		for i, key := range keys {
+			if values[i] == nil {
+				// Value does not exist (anymore), or not a string
+				continue
+			}
+			err = callback(stoabs.BytesKey(key), []byte(values[i].(string)))
+			if err != nil {
+				// Callback returned an error, stop iterate and return it
+				return err
+			}
+		}
+		if cursor == 0 {
+			// Done
+			break
+		}
+	}
+	return nil
 }
 
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
