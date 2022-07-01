@@ -34,7 +34,6 @@ import (
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
 )
 
 var key = []byte{1, 2, 3}
