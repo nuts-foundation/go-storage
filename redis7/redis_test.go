@@ -9,10 +9,11 @@ import (
 )
 
 func TestRedis(t *testing.T) {
-	s := miniredis.RunT(t)
-	defer s.Close()
-
-	provider := func(_ *testing.T) (stoabs.KVStore, error) {
+	provider := func(t *testing.T) (stoabs.KVStore, error) {
+		s := miniredis.RunT(t)
+		t.Cleanup(func() {
+			s.Close()
+		})
 		return CreateRedisStore(&redis.Options{
 			Addr: s.Addr(),
 		})
