@@ -32,11 +32,14 @@ var ErrStoreIsClosed = errors.New("store is closed")
 type KVStore interface {
 	Store
 	// Write starts a writable transaction and passes it to the given function.
+	// Callers should not try to read values which are written in the same transactions, and thus haven't been committed yet.
+	// The result when doing so depends on transaction isolation of the underlying database.
 	Write(fn func(WriteTx) error, opts ...TxOption) error
 	// Read starts a read-only transaction and passes it to the given function.
 	Read(fn func(ReadTx) error) error
 	// WriteShelf starts a writable transaction, open a writer for the specified shelf and passes it to the given function.
 	// If the shelf does not exist, it will be created.
+	// The same semantics of Write apply.
 	WriteShelf(shelfName string, fn func(Writer) error) error
 	// ReadShelf starts a read-only transaction, open a reader for the specified shelf and passes it to the given function.
 	// If the shelf does not exist, the function is not called.
