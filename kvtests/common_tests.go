@@ -243,6 +243,14 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			assert.NoError(t, store.Close(context.Background()))
 			assert.NoError(t, store.Close(context.Background()))
 		})
+		t.Run("write to closed store", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			assert.NoError(t, store.Close(context.Background()))
+			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+			})
+			assert.Equal(t, err, stoabs.ErrStoreIsClosed)
+		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			ctx, cancel := context.WithCancel(context.Background())

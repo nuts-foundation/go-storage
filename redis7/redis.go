@@ -23,7 +23,7 @@ func CreateRedisStore(opts *redis.Options) (stoabs.KVStore, error) {
 	// TODO: actually test the connection?
 	result := &store{
 		client: client,
-		mux:    &sync.Mutex{},
+		mux:    &sync.RWMutex{},
 	}
 	// TODO: Use options
 	result.log = logrus.StandardLogger()
@@ -33,7 +33,7 @@ func CreateRedisStore(opts *redis.Options) (stoabs.KVStore, error) {
 type store struct {
 	client *redis.Client
 	log    *logrus.Logger
-	mux    *sync.Mutex
+	mux    *sync.RWMutex
 }
 
 func (s *store) Close(ctx context.Context) error {
@@ -51,24 +51,73 @@ func (s *store) Close(ctx context.Context) error {
 }
 
 func (s store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+
 	return fn(&tx{client: s.client, store: &s})
 }
 
 func (s store) Read(fn func(stoabs.ReadTx) error) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+
 	return fn(&tx{client: s.client, store: &s})
 }
 
 func (s store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+
 	return fn(&shelf{name: shelfName, client: s.client})
 }
 
 func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+
+	reader, err := s.getShelfReader(shelfName)
+	if err != nil {
+		return err
+	}
+	if reader == nil {
+		return nil
+	}
 	return fn(&shelf{name: shelfName, client: s.client})
+}
+
+func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
+	// TODO: Is this too slow? Should we change the API as to just return a Reader, even when the shelf does not exist?
+	scanCmd := s.client.Scan(context.TODO(), 0, toRedisKey(shelfName, stoabs.BytesKey("*")), 1)
+	keys, _, err := scanCmd.Result()
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		// Shelf does not exist
+		return nil, nil
+	}
+	return &shelf{
+		name:   shelfName,
+		client: s.client,
+	}, nil
+}
+
+func (s *store) checkOpen() error {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	if s.client == nil {
+		return stoabs.ErrStoreIsClosed
+	}
+	return nil
 }
 
 type tx struct {
 	client *redis.Client
-	store  stoabs.KVStore
+	store  *store
 }
 
 func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
@@ -79,10 +128,14 @@ func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 }
 
 func (t tx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
-	return &shelf{
-		name:   shelfName,
-		client: t.client,
-	}, nil
+	reader, err := t.store.getShelfReader(shelfName)
+	if err != nil {
+		return nil, err
+	}
+	if reader == nil {
+		return nil, nil
+	}
+	return reader, nil
 }
 
 func (t tx) Store() stoabs.KVStore {
@@ -97,18 +150,22 @@ func (t tx) Unwrap() interface{} {
 type shelf struct {
 	name   string
 	client *redis.Client
+	store  *store
 }
 
 func (s shelf) Put(key stoabs.Key, value []byte) error {
-	return s.client.Set(context.TODO(), s.toRedisKey(key), value, 0).Err()
+	if err := s.store.checkOpen(); err != nil {
+		return err
+	}
+	return s.client.Set(context.TODO(), toRedisKey(s.name, key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.client.Del(context.TODO(), s.toRedisKey(key)).Err()
+	return s.client.Del(context.TODO(), toRedisKey(s.name, key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	result, err := s.client.Get(context.TODO(), s.toRedisKey(key)).Result()
+	result, err := s.client.Get(context.TODO(), toRedisKey(s.name, key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -137,7 +194,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 				// Value does not exist (anymore), or not a string
 				continue
 			}
-			err = callback(s.fromRedisKey(stoabs.BytesKey(key)), []byte(values[i].(string)))
+			err = callback(fromRedisKey(s.name, stoabs.BytesKey(key)), []byte(values[i].(string)))
 			if err != nil {
 				// Callback returned an error, stop iterate and return it
 				return err
@@ -163,12 +220,14 @@ func (s shelf) Stats() stoabs.ShelfStats {
 	}
 }
 
-func (s shelf) toRedisKey(key stoabs.Key) string {
+func toRedisKey(shelfName string, key stoabs.Key) string {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
-	return strings.Join([]string{s.name, string(key.Bytes())}, ".")
+	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
+	return strings.Join([]string{shelfName, string(key.Bytes())}, ".")
 }
 
-func (s shelf) fromRedisKey(key stoabs.Key) stoabs.Key {
+func fromRedisKey(shelfName string, key stoabs.Key) stoabs.Key {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
-	return stoabs.BytesKey(strings.TrimPrefix(string(key.Bytes()), s.name+"."))
+	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
+	return stoabs.BytesKey(strings.TrimPrefix(string(key.Bytes()), shelfName+"."))
 }

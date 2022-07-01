@@ -108,6 +108,12 @@ type store struct {
 }
 
 func (b *store) Close(ctx context.Context) error {
+	if b.db == nil {
+		return nil
+	}
+	defer func() {
+		b.db = nil
+	}()
 	return util.CallWithTimeout(ctx, b.db.Close, func() {
 		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
 	})
@@ -143,6 +149,10 @@ func (b *store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error)
 }
 
 func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
+	if err := b.checkOpen(); err != nil {
+		return err
+	}
+
 	opts := stoabs.TxOptions(optsSlice)
 
 	// Start transaction, retrieve/create shelf to operate on
@@ -181,6 +191,13 @@ func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []sto
 		return appError
 	}
 
+	return nil
+}
+
+func (b *store) checkOpen() error {
+	if b.db == nil {
+		return stoabs.ErrStoreIsClosed
+	}
 	return nil
 }
 
