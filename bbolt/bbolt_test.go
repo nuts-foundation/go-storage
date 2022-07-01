@@ -21,13 +21,18 @@ package bbolt
 import (
 	"context"
 	"errors"
-	"go.etcd.io/bbolt"
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"path"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/bbolt"
 )
 
 var key = []byte{1, 2, 3}
@@ -390,4 +395,38 @@ func createStore(t *testing.T) (stoabs.KVStore, error) {
 		store.Close(context.Background())
 	})
 	return store, err
+}
+
+func TestBBolt_CreateBBoltStore(t *testing.T) {
+	t.Run("opening locked file logs warning", func(t *testing.T) {
+		fileTimeout = 10 * time.Millisecond
+		defer func() {
+			fileTimeout = defaultFileTimeout
+		}()
+		filename := filepath.Join(util.TestDirectory(t), "test-store")
+		logger, hook := test.NewNullLogger()
+
+		// create first store
+		store1, err := CreateBBoltStore(filename)
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer store1.Close(context.Background())
+
+		// create second store
+		go func() {
+			store2, _ := CreateBBoltStore(filename, stoabs.WithLogger(logger)) // hangs while store1 is open
+			_ = store2.Close(context.Background())
+		}()
+
+		// wait for logger
+		var lastEntry *logrus.Entry
+		util.WaitFor(t, func() (bool, error) {
+			lastEntry = hook.LastEntry()
+			return lastEntry != nil, nil
+		}, 100*fileTimeout, "time-out while waiting for log message")
+
+		assert.Equal(t, fmt.Sprintf("Trying to open %s, but file appears to be locked", filename), lastEntry.Message)
+		assert.Equal(t, logrus.WarnLevel, lastEntry.Level)
+	})
 }

@@ -60,6 +60,11 @@ func WithLogger(log *logrus.Logger) Option {
 	}
 }
 
+// DefaultLogger is the logger that will be used when none is provided to a store
+func DefaultLogger() *logrus.Logger {
+	return logrus.StandardLogger()
+}
+
 // ShelfStats contains statistics about a shelf.
 type ShelfStats struct {
 	// NumEntries holds the number of entries in the shelf.
