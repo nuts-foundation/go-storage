@@ -230,21 +230,9 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 		if err != nil {
 			return err
 		}
-		getCmd := s.reader.MGet(context.Background(), keys...)
-		values, err := getCmd.Result()
+		err := s.visitKeys(keys, callback)
 		if err != nil {
 			return err
-		}
-		for i, key := range keys {
-			if values[i] == nil {
-				// Value does not exist (anymore), or not a string
-				continue
-			}
-			err = callback(fromRedisKey(s.name, key), []byte(values[i].(string)))
-			if err != nil {
-				// Callback returned an error, stop iterate and return it
-				return err
-			}
 		}
 		if cursor == 0 {
 			// Done
@@ -257,20 +245,38 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
 	keys := make([]string, 0, resultCount)
 	// Iterate from..to (start inclusive, end exclusive)
+	var numKeys = 0
 	for curr := from; bytes.Compare(curr.Bytes(), to.Bytes()) == -1; curr = curr.Next() {
 		keys = append(keys, toRedisKey(s.name, curr))
+		// We don't want to perform requests that are really large, so we limit it at resultCount keys
+		if numKeys >= resultCount {
+			err := s.visitKeys(keys, callback)
+			if err != nil {
+				return err
+			}
+			keys = make([]string, 0, resultCount)
+			numKeys = 0
+		} else {
+			numKeys++
+		}
 	}
+	return s.visitKeys(keys, callback)
+}
 
+func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn) error {
 	values, err := s.reader.MGet(context.TODO(), keys...).Result()
 	if err != nil {
 		return err
 	}
 	for i, value := range values {
-		if value != nil {
-			err := callback(fromRedisKey(s.name, keys[i]), []byte(value.(string)))
-			if err != nil {
-				return err
-			}
+		if values[i] == nil {
+			// Value does not exist (anymore), or not a string
+			continue
+		}
+		err := callback(fromRedisKey(s.name, keys[i]), []byte(value.(string)))
+		if err != nil {
+			// Callback returned an error, stop iterate and return it
+			return err
 		}
 	}
 	return nil
