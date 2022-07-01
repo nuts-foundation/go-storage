@@ -20,6 +20,7 @@ var _ stoabs.WriteTx = (*tx)(nil)
 var _ stoabs.Reader = (*shelf)(nil)
 var _ stoabs.Writer = (*shelf)(nil)
 
+// CreateRedisStore connects to a Redis database server using the given options.
 func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.Config{}
 	for _, opt := range opts {

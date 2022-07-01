@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// ErrStoreIsClosed is returned when an operation is executed on a closed store.
 var ErrStoreIsClosed = errors.New("store is closed")
 
 // KVStore defines the interface for a key-value store.
