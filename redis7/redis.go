@@ -2,7 +2,7 @@ package redis7
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
@@ -142,10 +142,7 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 		opts.InvokeAfterCommit()
 	} else {
 		s.log.WithError(appError).Warn("Rolling back transaction due to application error")
-		err := pl.Discard()
-		if err != nil {
-			s.log.WithError(err).Error("Could not Redis BBolt transaction")
-		}
+		pl.Discard()
 		opts.InvokeOnRollback()
 		return appError
 	}
