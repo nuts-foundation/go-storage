@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-var bytesKey = []byte{1, 2, 3}
-var bytesValue = stoabs.BytesKey(bytesKey).Next().Bytes()
-var largerBytesKey = []byte{4, 5, 6}
+var bytesKey = stoabs.BytesKey([]byte{1, 2, 3})
+var bytesValue = bytesKey.Next().Bytes()
+var largerBytesKey = stoabs.BytesKey([]byte{4, 5, 6})
 var largerBytesValue = []byte{100, 101, 102}
 
 const stringKey = "message"
@@ -31,7 +31,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 				if err != nil {
 					return err
 				}
-				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+				return writer.Put(bytesKey, bytesValue)
 			})
 			if !assert.NoError(t, err) {
 				return
@@ -39,7 +39,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 
 			var actual []byte
 			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-				actual, err = reader.Get(stoabs.BytesKey(bytesKey))
+				actual, err = reader.Get(bytesKey)
 				return err
 			})
 			assert.NoError(t, err)
@@ -110,7 +110,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 
 			var actual []byte
 			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-				actual, err = reader.Get(stoabs.BytesKey(bytesKey))
+				actual, err = reader.Get(bytesKey)
 				return err
 			})
 			if !assert.NoError(t, err) {
@@ -125,13 +125,13 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 	t.Run("range", func(t *testing.T) {
 		t.Run("returns correct key/values", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			from := stoabs.BytesKey(bytesKey)     // inclusive
-			to := stoabs.BytesKey(largerBytesKey) // exclusive
+			from := bytesKey     // inclusive
+			to := largerBytesKey // exclusive
 
 			// Write some data
 			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-				_ = writer.Put(stoabs.BytesKey(largerBytesKey), bytesValue)
-				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+				_ = writer.Put(largerBytesKey, bytesValue)
+				return writer.Put(bytesKey, bytesValue)
 			})
 
 			var keys, values [][]byte
@@ -154,13 +154,13 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			if !assert.Len(t, values, 1) {
 				return
 			}
-			assert.Equal(t, bytesKey, keys[0])
+			assert.Equal(t, bytesKey.Bytes(), keys[0])
 			assert.Equal(t, bytesValue, values[0])
 		})
 
 		t.Run("many results (2000 in store, want 1500)", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			from := stoabs.BytesKey(bytesKey)
+			from := bytesKey
 			var to stoabs.Key
 
 			var currentKey stoabs.Key = from
@@ -194,12 +194,12 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 
 		t.Run("error", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			from := stoabs.BytesKey(bytesKey)     // inclusive
-			to := stoabs.BytesKey(largerBytesKey) // exclusive
+			from := bytesKey     // inclusive
+			to := largerBytesKey // exclusive
 
 			// Write some data
 			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+				return writer.Put(bytesKey, bytesValue)
 			})
 
 			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
@@ -221,8 +221,8 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 
 		// Write some data
 		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			_ = writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
-			return writer.Put(stoabs.BytesKey(largerBytesKey), largerBytesValue)
+			_ = writer.Put(bytesKey, bytesValue)
+			return writer.Put(largerBytesKey, largerBytesValue)
 		})
 
 		var keys, values [][]byte
@@ -246,8 +246,8 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			return
 		}
 
-		assert.Contains(t, keys, bytesKey)
-		assert.Contains(t, keys, largerBytesKey)
+		assert.Contains(t, keys, bytesKey.Bytes())
+		assert.Contains(t, keys, largerBytesKey.Bytes())
 		assert.Contains(t, values, bytesValue)
 		assert.Contains(t, values, largerBytesValue)
 	})
@@ -257,7 +257,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 
 		// Write some data otherwise shelf is empty and no error can be returned
 		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+			return writer.Put(bytesKey, bytesValue)
 		})
 
 		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
@@ -299,7 +299,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 
 		t.Run("rollback does not commit changes", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			firstKey := stoabs.BytesKey(bytesKey)
+			firstKey := bytesKey
 			secondKey := firstKey.Next()
 			thirdKey := secondKey.Next()
 
@@ -348,11 +348,11 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				if err != nil {
 					return err
 				}
-				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+				return writer.Put(bytesKey, bytesValue)
 			}, stoabs.AfterCommit(func() {
 				// Happens after commit, so we should be able to read the data now
 				innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-					actual, innerError = reader.Get(stoabs.BytesKey(bytesKey))
+					actual, innerError = reader.Get(bytesKey)
 					return innerError
 				})
 				if innerError != nil {
@@ -393,6 +393,40 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 	})
 }
 
+func TestDelete(t *testing.T, storeProvider StoreProvider) {
+	t.Run("Delete()", func(t *testing.T) {
+		t.Run("write, delete, read", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			// Write
+			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				_ = writer.Put(bytesKey, bytesValue)
+				return writer.Put(largerBytesKey, bytesValue)
+			})
+			assert.NoError(t, err)
+			// Delete
+			err = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				return writer.Delete(bytesKey)
+			})
+			assert.NoError(t, err)
+			// Read, assert
+			var actual []byte
+			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+				actual, err = reader.Get(bytesKey)
+				return err
+			})
+			assert.NoError(t, err)
+			assert.Nil(t, actual)
+		})
+		t.Run("delete non-existing entry", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				return writer.Delete(bytesKey)
+			})
+			assert.NoError(t, err)
+		})
+	})
+}
+
 func TestClose(t *testing.T, storeProvider StoreProvider) {
 	t.Run("Close()", func(t *testing.T) {
 		t.Run("close closed store", func(t *testing.T) {
@@ -404,7 +438,7 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 			assert.NoError(t, store.Close(context.Background()))
 			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+				return writer.Put(bytesKey, bytesValue)
 			})
 			assert.Equal(t, err, stoabs.ErrStoreIsClosed)
 		})
