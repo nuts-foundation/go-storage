@@ -158,6 +158,40 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			assert.Equal(t, bytesValue, values[0])
 		})
 
+		t.Run("many results (2000 in store, want 1500)", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			from := stoabs.BytesKey(bytesKey)
+			var to stoabs.Key
+
+			var currentKey stoabs.Key = from
+			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				for i := 1; i <= 2000; i++ {
+					if i == 1501 { // end is exclusive
+						to = currentKey
+					}
+					_ = writer.Put(currentKey, bytesValue)
+					currentKey = currentKey.Next()
+				}
+				return nil
+			})
+
+			// Range from..to
+			var keys, values [][]byte
+			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
+					keys = append(keys, key.Bytes())
+					values = append(values, value)
+					return nil
+				})
+				return err
+			})
+
+			// Just assert number of entries (correctness is verified in other test)
+			assert.NoError(t, err)
+			assert.Len(t, keys, 1500)
+			assert.Len(t, values, 1500)
+		})
+
 		t.Run("error", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			from := stoabs.BytesKey(bytesKey)     // inclusive

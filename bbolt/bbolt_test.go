@@ -93,64 +93,6 @@ func TestBBolt_WriteShelf(t *testing.T) {
 	})
 }
 
-func TestBboltShelf_Range(t *testing.T) {
-	t.Run("returns correct key/values", func(t *testing.T) {
-		store, _ := createStore(t)
-		from := stoabs.BytesKey(key) // inclusive
-		to := stoabs.BytesKey(value) // exclusive
-
-		// Write some data
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			_ = writer.Put(stoabs.BytesKey(value), key)
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-
-		var keys, values [][]byte
-		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
-				keys = append(keys, key.Bytes())
-				values = append(values, value)
-				return nil
-			})
-
-			return err
-		})
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, keys, 1) {
-			return
-		}
-		if !assert.Len(t, values, 1) {
-			return
-		}
-		assert.Equal(t, key, keys[0])
-		assert.Equal(t, value, values[0])
-	})
-
-	t.Run("error", func(t *testing.T) {
-		store, _ := createStore(t)
-		from := stoabs.BytesKey(key) // inclusive
-		to := stoabs.BytesKey(value) // exclusive
-
-		// Write some data
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.BytesKey(key), value)
-		})
-
-		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-			err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
-				return errors.New("failure")
-			})
-
-			return err
-		})
-
-		assert.EqualError(t, err, "failure")
-	})
-}
-
 func createStore(t *testing.T) (stoabs.KVStore, error) {
 	store, err := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 	t.Cleanup(func() {

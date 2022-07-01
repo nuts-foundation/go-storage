@@ -1,6 +1,7 @@
 package redis7
 
 import (
+	"bytes"
 	"context"
 	"github.com/go-redis/redis/v9"
 	"github.com/nuts-foundation/go-stoabs"
@@ -10,7 +11,7 @@ import (
 	"sync"
 )
 
-const scanResultCount = 100
+const resultCount = 1000
 
 var _ stoabs.KVStore = (*store)(nil)
 var _ stoabs.ReadTx = (*tx)(nil)
@@ -224,7 +225,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.name+"*", scanResultCount)
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.name+"*", resultCount)
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -239,7 +240,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 				// Value does not exist (anymore), or not a string
 				continue
 			}
-			err = callback(fromRedisKey(s.name, stoabs.BytesKey(key)), []byte(values[i].(string)))
+			err = callback(fromRedisKey(s.name, key), []byte(values[i].(string)))
 			if err != nil {
 				// Callback returned an error, stop iterate and return it
 				return err
@@ -254,8 +255,24 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 }
 
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
-	//TODO implement me
-	//panic("implement me")
+	keys := make([]string, 0, resultCount)
+	// Iterate from..to (start inclusive, end exclusive)
+	for curr := from; bytes.Compare(curr.Bytes(), to.Bytes()) == -1; curr = curr.Next() {
+		keys = append(keys, toRedisKey(s.name, curr))
+	}
+
+	values, err := s.reader.MGet(context.TODO(), keys...).Result()
+	if err != nil {
+		return err
+	}
+	for i, value := range values {
+		if value != nil {
+			err := callback(fromRedisKey(s.name, keys[i]), []byte(value.(string)))
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -272,8 +289,8 @@ func toRedisKey(shelfName string, key stoabs.Key) string {
 	return strings.Join([]string{shelfName, string(key.Bytes())}, ".")
 }
 
-func fromRedisKey(shelfName string, key stoabs.Key) stoabs.Key {
+func fromRedisKey(shelfName string, key string) stoabs.Key {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
-	return stoabs.BytesKey(strings.TrimPrefix(string(key.Bytes()), shelfName+"."))
+	return stoabs.BytesKey(strings.TrimPrefix(key, shelfName+"."))
 }
