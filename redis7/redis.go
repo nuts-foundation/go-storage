@@ -70,8 +70,7 @@ func (s store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error 
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
-
-	return fn(&shelf{name: shelfName, client: s.client})
+	return fn(s.getShelf(shelfName))
 }
 
 func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
@@ -86,7 +85,15 @@ func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
 	if reader == nil {
 		return nil
 	}
-	return fn(&shelf{name: shelfName, client: s.client})
+	return fn(s.getShelf(shelfName))
+}
+
+func (s *store) getShelf(shelfName string) *shelf {
+	return &shelf{
+		name:   shelfName,
+		client: s.client,
+		store:  s,
+	}
 }
 
 func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
@@ -100,10 +107,7 @@ func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
 		// Shelf does not exist
 		return nil, nil
 	}
-	return &shelf{
-		name:   shelfName,
-		client: s.client,
-	}, nil
+	return s.getShelf(shelfName), nil
 }
 
 func (s *store) checkOpen() error {
@@ -121,10 +125,7 @@ type tx struct {
 }
 
 func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return &shelf{
-		name:   shelfName,
-		client: t.client,
-	}, nil
+	return t.store.getShelf(shelfName), nil
 }
 
 func (t tx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
