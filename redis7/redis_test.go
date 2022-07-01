@@ -22,6 +22,7 @@ func TestRedis(t *testing.T) {
 	kvtests.TestClose(t, provider)
 	kvtests.TestIterate(t, provider)
 	kvtests.TestReadingAndWriting(t, provider)
+	kvtests.TestWriteTransactions(t, provider)
 	// TODO: Did not find out how to efficiently calculate stats for Redis.
 	// kvtests.TestStats(t, provider)
 	kvtests.TestRange(t, provider)

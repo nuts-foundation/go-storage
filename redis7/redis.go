@@ -50,30 +50,34 @@ func (s *store) Close(ctx context.Context) error {
 	return err
 }
 
-func (s store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+func (s *store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
 
-	return fn(&tx{client: s.client, store: &s})
+	return s.doTX(func(writer redis.Pipeliner) error {
+		return fn(&tx{writer: writer, reader: s.client, store: s})
+	}, opts)
 }
 
-func (s store) Read(fn func(stoabs.ReadTx) error) error {
+func (s *store) Read(fn func(stoabs.ReadTx) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
 
-	return fn(&tx{client: s.client, store: &s})
+	return fn(&tx{reader: s.client, store: s})
 }
 
-func (s store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error {
+func (s *store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
-	return fn(s.getShelf(shelfName))
+	return s.doTX(func(tx redis.Pipeliner) error {
+		return fn(s.getShelf(shelfName, tx, s.client))
+	}, nil)
 }
 
-func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
+func (s *store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
@@ -85,13 +89,14 @@ func (s store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
 	if reader == nil {
 		return nil
 	}
-	return fn(s.getShelf(shelfName))
+	return fn(s.getShelf(shelfName, nil, s.client))
 }
 
-func (s *store) getShelf(shelfName string) *shelf {
+func (s *store) getShelf(shelfName string, writer redis.Cmdable, reader redis.Cmdable) *shelf {
 	return &shelf{
 		name:   shelfName,
-		client: s.client,
+		writer: writer,
+		reader: reader,
 		store:  s,
 	}
 }
@@ -107,7 +112,45 @@ func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
 		// Shelf does not exist
 		return nil, nil
 	}
-	return s.getShelf(shelfName), nil
+	return s.getShelf(shelfName, nil, s.client), nil
+}
+
+func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
+
+	opts := stoabs.TxOptions(optsSlice)
+
+	// Start transaction, retrieve/create shelf to operate on
+	pl := s.client.TxPipeline()
+
+	// Perform TX action(s)
+	appError := fn(pl)
+
+	// Observe result, commit/rollback
+	if appError == nil {
+		s.log.Trace("Committing Redis transaction (TxPipeline)")
+		cmdErrs, err := pl.Exec(context.TODO())
+		if err != nil {
+			for _, cmdErr := range cmdErrs {
+				s.log.WithError(cmdErr.Err()).Errorf("Redis pipeline command failed: %s", cmdErr.String())
+			}
+			opts.InvokeOnRollback()
+			return stoabs.ErrCommitFailed
+		}
+		opts.InvokeAfterCommit()
+	} else {
+		s.log.WithError(appError).Warn("Rolling back transaction due to application error")
+		err := pl.Discard()
+		if err != nil {
+			s.log.WithError(err).Error("Could not Redis BBolt transaction")
+		}
+		opts.InvokeOnRollback()
+		return appError
+	}
+
+	return nil
 }
 
 func (s *store) checkOpen() error {
@@ -120,12 +163,13 @@ func (s *store) checkOpen() error {
 }
 
 type tx struct {
-	client *redis.Client
+	reader redis.Cmdable
+	writer redis.Cmdable
 	store  *store
 }
 
 func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return t.store.getShelf(shelfName), nil
+	return t.store.getShelf(shelfName, t.writer, t.reader), nil
 }
 
 func (t tx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
@@ -144,13 +188,16 @@ func (t tx) Store() stoabs.KVStore {
 }
 
 func (t tx) Unwrap() interface{} {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 type shelf struct {
 	name   string
-	client *redis.Client
+	reader redis.Cmdable
+	// writer holds the Redis command writer for writing to the database.
+	// It is separate from the reader because writes use a transactional Redis pipeline, which buffers the commands.
+	// Buffering read commands would result in unexpected behaviour where the reads are only executed on transaction commit.
+	writer redis.Cmdable
 	store  *store
 }
 
@@ -158,15 +205,15 @@ func (s shelf) Put(key stoabs.Key, value []byte) error {
 	if err := s.store.checkOpen(); err != nil {
 		return err
 	}
-	return s.client.Set(context.TODO(), toRedisKey(s.name, key), value, 0).Err()
+	return s.writer.Set(context.TODO(), toRedisKey(s.name, key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.client.Del(context.TODO(), toRedisKey(s.name, key)).Err()
+	return s.writer.Del(context.TODO(), toRedisKey(s.name, key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	result, err := s.client.Get(context.TODO(), toRedisKey(s.name, key)).Result()
+	result, err := s.reader.Get(context.TODO(), toRedisKey(s.name, key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -180,12 +227,12 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.client.Scan(context.TODO(), cursor, s.name+"*", scanResultCount)
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.name+"*", scanResultCount)
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
 		}
-		getCmd := s.client.MGet(context.Background(), keys...)
+		getCmd := s.reader.MGet(context.Background(), keys...)
 		values, err := getCmd.Result()
 		if err != nil {
 			return err
@@ -211,7 +258,8 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
 	//TODO implement me
-	panic("implement me")
+	//panic("implement me")
+	return nil
 }
 
 func (s shelf) Stats() stoabs.ShelfStats {

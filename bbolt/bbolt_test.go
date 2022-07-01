@@ -52,81 +52,7 @@ func TestBBolt(t *testing.T) {
 	kvtests.TestIterate(t, provider)
 	kvtests.TestClose(t, provider)
 	kvtests.TestStats(t, provider)
-}
-
-func TestBBolt_Write(t *testing.T) {
-	t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		var rollbackCalled = false
-		var afterCommitCalled = false
-		err := store.Write(func(tx stoabs.WriteTx) error {
-			_ = tx.(*bboltTx).tx.Rollback()
-			return nil
-		}, stoabs.OnRollback(func() {
-			rollbackCalled = true
-		}), stoabs.AfterCommit(func() {
-			afterCommitCalled = true
-		}))
-		assert.Error(t, err)
-		assert.True(t, rollbackCalled)
-		assert.False(t, afterCommitCalled)
-	})
-
-	t.Run("afterCommit and onRollback after commit", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		var actual []byte
-		var innerError error
-		var onRollbackCalled bool
-
-		err := store.Write(func(tx stoabs.WriteTx) error {
-			writer, err := tx.GetShelfWriter(shelf)
-			if err != nil {
-				return err
-			}
-			return writer.Put(stoabs.BytesKey(key), value)
-		}, stoabs.AfterCommit(func() {
-			// Happens after commit, so we should be able to read the data now
-			innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-				actual, innerError = reader.Get(stoabs.BytesKey(key))
-				return innerError
-			})
-			if innerError != nil {
-				t.Fatal(innerError)
-			}
-		}), stoabs.OnRollback(func() {
-			onRollbackCalled = true
-		}))
-
-		assert.NoError(t, err)
-		assert.Equal(t, value, actual)
-		assert.False(t, onRollbackCalled)
-	})
-	t.Run("afterCommit and onRollback on rollback", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		var afterCommitCalled bool
-		var onRollbackCalled bool
-
-		_ = store.Write(func(tx stoabs.WriteTx) error {
-			return errors.New("failed")
-		}, stoabs.AfterCommit(func() {
-			afterCommitCalled = true
-		}), stoabs.OnRollback(func() {
-			onRollbackCalled = true
-		}))
-
-		assert.False(t, afterCommitCalled)
-		assert.True(t, onRollbackCalled)
-	})
-	t.Run("store is set on transaction", func(t *testing.T) {
-		store, _ := createStore(t)
-		_ = store.Write(func(tx stoabs.WriteTx) error {
-			assert.True(t, tx.Store() == store)
-			return nil
-		})
-	})
+	kvtests.TestWriteTransactions(t, provider)
 }
 
 func TestBBolt_Unwrap(t *testing.T) {
@@ -225,19 +151,10 @@ func TestBboltShelf_Range(t *testing.T) {
 	})
 }
 
-func getStats(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
-	var stats stoabs.ShelfStats
-	_ = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
-		stats = reader.Stats()
-		return nil
-	})
-	return stats
-}
-
 func createStore(t *testing.T) (stoabs.KVStore, error) {
 	store, err := CreateBBoltStore(path.Join(util.TestDirectory(t), "bbolt.db"), stoabs.WithNoSync())
 	t.Cleanup(func() {
-		store.Close(context.Background())
+		_ = store.Close(context.Background())
 	})
 	return store, err
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/bbolt"
 	"testing"
 )
 
@@ -233,6 +234,128 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			return err
 		})
 		assert.EqualError(t, err, "failure")
+	})
+}
+
+func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
+	t.Run("write transactions", func(t *testing.T) {
+		t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			var rollbackCalled = false
+			var afterCommitCalled = false
+			err := store.Write(func(tx stoabs.WriteTx) error {
+				switch dbTX := tx.Unwrap().(type) {
+				case *bbolt.Tx:
+					_ = dbTX.Rollback()
+				default:
+					// Not supported
+					t.SkipNow()
+				}
+				return nil
+			}, stoabs.OnRollback(func() {
+				rollbackCalled = true
+			}), stoabs.AfterCommit(func() {
+				afterCommitCalled = true
+			}))
+			assert.Error(t, err)
+			assert.True(t, rollbackCalled)
+			assert.False(t, afterCommitCalled)
+		})
+
+		t.Run("rollback does not commit changes", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			firstKey := stoabs.BytesKey(bytesKey)
+			secondKey := firstKey.Next()
+			thirdKey := secondKey.Next()
+
+			// First write some data
+			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				_ = writer.Put(firstKey, bytesValue)
+				return nil
+			})
+
+			// Then write some data in a TX that is rolled back
+			var actualValue []byte
+			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				_ = writer.Put(secondKey, bytesValue)
+				_ = writer.Put(thirdKey, bytesValue)
+				// Also read a value to assert it doesn't accidentally commit the writes above (Redis)
+				actualValue, _ = writer.Get(firstKey)
+				return errors.New("failure")
+			})
+			assert.Error(t, err)
+			assert.Equal(t, bytesValue, actualValue)
+
+			// Assert that the first key can be read, but the second and third keys not
+			var actual []stoabs.Key
+			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+				return reader.Iterate(func(key stoabs.Key, _ []byte) error {
+					actual = append(actual, key)
+					return nil
+				})
+			})
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Len(t, actual, 1)
+			assert.Contains(t, actual, firstKey)
+		})
+
+		t.Run("afterCommit and onRollback after commit", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			var actual []byte
+			var innerError error
+			var onRollbackCalled bool
+
+			err := store.Write(func(tx stoabs.WriteTx) error {
+				writer, err := tx.GetShelfWriter(shelf)
+				if err != nil {
+					return err
+				}
+				return writer.Put(stoabs.BytesKey(bytesKey), bytesValue)
+			}, stoabs.AfterCommit(func() {
+				// Happens after commit, so we should be able to read the data now
+				innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+					actual, innerError = reader.Get(stoabs.BytesKey(bytesKey))
+					return innerError
+				})
+				if innerError != nil {
+					t.Fatal(innerError)
+				}
+			}), stoabs.OnRollback(func() {
+				onRollbackCalled = true
+			}))
+
+			assert.NoError(t, err)
+			assert.Equal(t, bytesValue, actual)
+			assert.False(t, onRollbackCalled)
+		})
+		t.Run("afterCommit and onRollback on rollback", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			var afterCommitCalled bool
+			var onRollbackCalled bool
+
+			_ = store.Write(func(tx stoabs.WriteTx) error {
+				return errors.New("failed")
+			}, stoabs.AfterCommit(func() {
+				afterCommitCalled = true
+			}), stoabs.OnRollback(func() {
+				onRollbackCalled = true
+			}))
+
+			assert.False(t, afterCommitCalled)
+			assert.True(t, onRollbackCalled)
+		})
+		t.Run("store is set on transaction", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			_ = store.Write(func(tx stoabs.WriteTx) error {
+				assert.True(t, tx.Store() == store)
+				return nil
+			})
+		})
 	})
 }
 
