@@ -3,6 +3,7 @@ package redis7
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/go-redis/redis/v9"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
@@ -19,15 +20,27 @@ var _ stoabs.WriteTx = (*tx)(nil)
 var _ stoabs.Reader = (*shelf)(nil)
 var _ stoabs.Writer = (*shelf)(nil)
 
-func CreateRedisStore(opts *redis.Options) (stoabs.KVStore, error) {
-	client := redis.NewClient(opts)
-	// TODO: actually test the connection?
+func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
+	cfg := stoabs.Config{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	client := redis.NewClient(clientOpts)
+	_, err := client.Ping(context.TODO()).Result()
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
+	}
+
 	result := &store{
 		client: client,
 		mux:    &sync.RWMutex{},
 	}
-	// TODO: Use options
-	result.log = logrus.StandardLogger()
+
+	result.log = cfg.Log
+	if result.log == nil {
+		result.log = logrus.StandardLogger()
+	}
 	return result, nil
 }
 
@@ -186,7 +199,7 @@ func (t tx) Store() stoabs.KVStore {
 }
 
 func (t tx) Unwrap() interface{} {
-	return nil
+	return t.writer
 }
 
 type shelf struct {
