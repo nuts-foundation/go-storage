@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-redis/redis/v9"
+	"github.com/go-redsync/redsync/v4"
+	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/util"
 	"github.com/sirupsen/logrus"
@@ -28,6 +30,7 @@ func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.
 	}
 
 	client := redis.NewClient(clientOpts)
+
 	_, err := client.Ping(context.TODO()).Result()
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
@@ -35,6 +38,7 @@ func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.
 
 	result := &store{
 		client: client,
+		rs:     redsync.New(goredis.NewPool(client)),
 		mux:    &sync.RWMutex{},
 	}
 
@@ -47,6 +51,7 @@ func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.
 
 type store struct {
 	client *redis.Client
+	rs     *redsync.Redsync
 	log    *logrus.Logger
 	mux    *sync.RWMutex
 }
@@ -136,6 +141,23 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	}
 
 	opts := stoabs.TxOptions(optsSlice)
+
+	// Obtain transaction-level write lock, if requested
+	var txMutex *redsync.Mutex
+	if opts.RequestsWriteLock() {
+		println("locking")
+		txMutex = s.rs.NewMutex("global")
+		err := txMutex.Lock()
+		if err != nil {
+			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
+		}
+		defer func(txMutex *redsync.Mutex, log *logrus.Logger) {
+			_, err := txMutex.Unlock()
+			if err != nil {
+				log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
+			}
+		}(txMutex, s.log)
+	}
 
 	// Start transaction, retrieve/create shelf to operate on
 	pl := s.client.TxPipeline()

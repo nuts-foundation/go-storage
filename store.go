@@ -119,6 +119,9 @@ type TxOption interface{}
 
 type TxOptions []TxOption
 
+type writeLockOption struct {
+}
+
 func (opts TxOptions) InvokeOnRollback() {
 	for _, opt := range opts {
 		if ar, ok := opt.(*OnRollbackOpt); ok {
@@ -133,6 +136,21 @@ func (opts TxOptions) InvokeAfterCommit() {
 			ar.Func()
 		}
 	}
+}
+
+func (opts TxOptions) RequestsWriteLock() bool {
+	for _, opt := range opts {
+		if _, ok := opt.(writeLockOption); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// WithWriteLock is a transaction option that acquires a write lock for the entire store, making sure there are no concurrent writeable transactions.
+// The lock is released when the transaction finishes in any way (commit/rollback).
+func WithWriteLock() TxOption {
+	return writeLockOption{}
 }
 
 type AfterCommitOpt struct {

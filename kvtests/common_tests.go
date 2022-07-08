@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/nuts-foundation/go-stoabs"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
+	"sync"
 	"testing"
 )
 
@@ -390,6 +392,48 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				return nil
 			})
 		})
+	})
+}
+
+func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
+	t.Run("Transaction-Level Write Lock", func(t *testing.T) {
+		store := createStore(t, storeProvider)
+
+		const numTXs = 10
+		// We use a Mutex.TryLock() to detect if write transactions are executed concurrently.
+		// If we can't acquire the lock, it means there's another TX in flight.
+		assertionLock := &sync.Mutex{}
+		failures := make(chan error, numTXs)
+		wg := sync.WaitGroup{}
+
+		for i := 0; i < numTXs; i++ {
+			wg.Add(1)
+			go func(mux *sync.Mutex, idx int) {
+				err := store.Write(func(tx stoabs.WriteTx) error {
+					logrus.Infof("starting %d", idx)
+					if !mux.TryLock() {
+						return errors.New("concurrent write transactions detected")
+					}
+					defer mux.Unlock()
+					writer, err := tx.GetShelfWriter(shelf)
+					if err != nil {
+						return err
+					}
+					logrus.Infof("end of %d", idx)
+					return writer.Put(bytesKey, bytesValue)
+				}, stoabs.WithWriteLock())
+				if err != nil {
+					failures <- err
+				}
+				wg.Done()
+			}(assertionLock, i)
+		}
+
+		// Wait for all TXs to finish
+		wg.Wait()
+
+		// Check for failures
+		assert.Len(t, failures, 0)
 	})
 }
 

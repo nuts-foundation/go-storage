@@ -53,6 +53,7 @@ func TestBBolt(t *testing.T) {
 	kvtests.TestDelete(t, provider)
 	kvtests.TestStats(t, provider)
 	kvtests.TestWriteTransactions(t, provider)
+	kvtests.TestTransactionWriteLock(t, provider)
 }
 
 func TestBBolt_Unwrap(t *testing.T) {

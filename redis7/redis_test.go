@@ -28,6 +28,7 @@ func TestRedis(t *testing.T) {
 	// TODO: Did not find out how to efficiently calculate stats for Redis.
 	// kvtests.TestStats(t, provider)
 	kvtests.TestWriteTransactions(t, provider)
+	kvtests.TestTransactionWriteLock(t, provider)
 }
 
 func TestCreateRedisStore(t *testing.T) {
