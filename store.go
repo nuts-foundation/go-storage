@@ -138,6 +138,7 @@ func (opts TxOptions) InvokeAfterCommit() {
 	}
 }
 
+// RequestsWriteLock returns whether the WithWriteLock option was specified.
 func (opts TxOptions) RequestsWriteLock() bool {
 	for _, opt := range opts {
 		if _, ok := opt.(writeLockOption); ok {
