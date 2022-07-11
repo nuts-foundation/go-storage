@@ -257,7 +257,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 			// Nothing to iterate over
 			return nil
 		}
-		err := s.visitKeys(keys, callback)
+		_, err := s.visitKeys(keys, callback, false)
 		if err != nil {
 			return err
 		}
@@ -269,7 +269,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	return nil
 }
 
-func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
+func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
 	resultCount := s.store.cfg.PageSize
 	keys := make([]string, 0, resultCount)
 	// Iterate from..to (start inclusive, end exclusive)
@@ -278,8 +278,8 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) e
 		keys = append(keys, s.toRedisKey(curr))
 		// We don't want to perform requests that are really large, so we limit it at page size
 		if numKeys >= resultCount {
-			err := s.visitKeys(keys, callback)
-			if err != nil {
+			proceed, err := s.visitKeys(keys, callback, stopAtNil)
+			if err != nil || !proceed {
 				return err
 			}
 			keys = make([]string, 0, resultCount)
@@ -288,26 +288,30 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) e
 			numKeys++
 		}
 	}
-	return s.visitKeys(keys, callback)
+	_, err := s.visitKeys(keys, callback, stopAtNil)
+	return err
 }
 
-func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn) error {
+func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, stopAtNil bool) (bool, error) {
 	values, err := s.reader.MGet(context.TODO(), keys...).Result()
 	if err != nil {
-		return err
+		return false, err
 	}
 	for i, value := range values {
 		if values[i] == nil {
 			// Value does not exist (anymore), or not a string
+			if stopAtNil {
+				return false, nil
+			}
 			continue
 		}
 		err := callback(s.fromRedisKey(keys[i]), []byte(value.(string)))
 		if err != nil {
 			// Callback returned an error, stop iterate and return it
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func (s shelf) Stats() stoabs.ShelfStats {

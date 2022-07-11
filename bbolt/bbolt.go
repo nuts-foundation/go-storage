@@ -275,7 +275,8 @@ func (t bboltShelf) Iterate(callback stoabs.CallerFn) error {
 	return nil
 }
 
-func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
+func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, _ bool) error {
+	// TODO: stopAtNil is ignored for BBolt
 	cursor := t.bucket.Cursor()
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
 		// return a copy to avoid data manipulation

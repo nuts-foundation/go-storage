@@ -98,7 +98,8 @@ type Reader interface {
 	Iterate(callback CallerFn) error
 	// Range calls the callback for each key/value pair on this shelf from (inclusive) and to (exclusive) given keys.
 	// Ordering is guaranteed and determined by the type of Key given.
-	Range(from Key, to Key, callback CallerFn) error
+	// If stopAtNil is true the operation stops when a non-existing key is encountered.
+	Range(from Key, to Key, callback CallerFn, stopAtNil bool) error
 	// Stats returns statistics about the shelf.
 	Stats() ShelfStats
 }
@@ -210,7 +211,7 @@ func (n NilReader) Iterate(_ CallerFn) error {
 	return nil
 }
 
-func (n NilReader) Range(_ Key, to Key, _ CallerFn) error {
+func (n NilReader) Range(_ Key, to Key, _ CallerFn, _ bool) error {
 	return nil
 }
 
