@@ -244,6 +244,10 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 		if err != nil {
 			return err
 		}
+		if len(keys) == 0 {
+			// Nothing to iterate over
+			return nil
+		}
 		err := s.visitKeys(keys, callback)
 		if err != nil {
 			return err

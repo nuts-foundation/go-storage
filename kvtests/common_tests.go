@@ -256,6 +256,24 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 		assert.Contains(t, values, largerBytesValue)
 	})
 
+	t.Run("iterate over empty store", func(t *testing.T) {
+		store := createStore(t, storeProvider)
+
+		var keys, values [][]byte
+		err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := reader.Iterate(func(key stoabs.Key, value []byte) error {
+				keys = append(keys, key.Bytes())
+				values = append(values, value)
+				return nil
+			})
+
+			return err
+		})
+		assert.NoError(t, err)
+		assert.Empty(t, keys)
+		assert.Empty(t, values)
+	})
+
 	t.Run("error", func(t *testing.T) {
 		store := createStore(t, storeProvider)
 
