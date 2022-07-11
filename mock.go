@@ -381,12 +381,11 @@ func (m *MockWriteTx) EXPECT() *MockWriteTxMockRecorder {
 }
 
 // GetShelfReader mocks base method.
-func (m *MockWriteTx) GetShelfReader(shelfName string) (Reader, error) {
+func (m *MockWriteTx) GetShelfReader(shelfName string) Reader {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShelfReader", shelfName)
 	ret0, _ := ret[0].(Reader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetShelfReader indicates an expected call of GetShelfReader.
@@ -462,12 +461,11 @@ func (m *MockReadTx) EXPECT() *MockReadTxMockRecorder {
 }
 
 // GetShelfReader mocks base method.
-func (m *MockReadTx) GetShelfReader(shelfName string) (Reader, error) {
+func (m *MockReadTx) GetShelfReader(shelfName string) Reader {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShelfReader", shelfName)
 	ret0, _ := ret[0].(Reader)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetShelfReader indicates an expected call of GetShelfReader.
