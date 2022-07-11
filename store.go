@@ -68,6 +68,12 @@ func WithLogger(log *logrus.Logger) Option {
 	}
 }
 
+func WithPageSize(pageSize int) Option {
+	return func(config *Config) {
+		config.PageSize = pageSize
+	}
+}
+
 // DefaultLogger is the logger that will be used when none is provided to a store
 func DefaultLogger() *logrus.Logger {
 	return logrus.StandardLogger()
