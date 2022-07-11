@@ -32,17 +32,8 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 		opt(&cfg)
 	}
 
-	client := redis.NewClient(clientOpts)
-
-	_, err := client.Ping(context.TODO()).Result()
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
-	}
-
 	result := &store{
 		prefix: prefix,
-		client: client,
-		rs:     redsync.New(goredis.NewPool(client)),
 		mux:    &sync.RWMutex{},
 		cfg:    cfg,
 	}
@@ -51,6 +42,19 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 	if result.log == nil {
 		result.log = logrus.StandardLogger()
 	}
+
+	client := redis.NewClient(clientOpts)
+
+	result.log.Debugf("Checking connection to Redis database (address=%s)...", client.Options().Addr)
+	_, err := client.Ping(context.TODO()).Result()
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
+	}
+	result.log.Debug("Connection check successful")
+
+	result.client = client
+	result.rs = redsync.New(goredis.NewPool(client))
+
 	return result, nil
 }
 
