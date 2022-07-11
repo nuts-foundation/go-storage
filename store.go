@@ -52,6 +52,8 @@ type Option func(config *Config)
 type Config struct {
 	Log    *logrus.Logger
 	NoSync bool
+	// PageSize contains the maximum number of entries a page sent over the network will contain.
+	PageSize int
 }
 
 func WithNoSync() Option {

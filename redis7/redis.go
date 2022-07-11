@@ -25,7 +25,9 @@ var _ stoabs.Writer = (*shelf)(nil)
 // CreateRedisStore connects to a Redis database server using the given options.
 // The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
 func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{}
+	cfg := stoabs.Config{
+		PageSize: resultCount,
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -42,6 +44,7 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 		client: client,
 		rs:     redsync.New(goredis.NewPool(client)),
 		mux:    &sync.RWMutex{},
+		cfg:    cfg,
 	}
 
 	result.log = cfg.Log
@@ -60,6 +63,7 @@ type store struct {
 	// Redis doesn't supported named databases but only preconfigured, (numerically) indexed databases
 	// which isn't very practical.
 	prefix string
+	cfg    stoabs.Config
 }
 
 func (s *store) Close(ctx context.Context) error {
@@ -244,7 +248,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), resultCount)
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), int64(s.store.cfg.PageSize))
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -266,12 +270,13 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 }
 
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) error {
+	resultCount := s.store.cfg.PageSize
 	keys := make([]string, 0, resultCount)
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
 	for curr := from; bytes.Compare(curr.Bytes(), to.Bytes()) == -1; curr = curr.Next() {
 		keys = append(keys, s.toRedisKey(curr))
-		// We don't want to perform requests that are really large, so we limit it at resultCount keys
+		// We don't want to perform requests that are really large, so we limit it at page size
 		if numKeys >= resultCount {
 			err := s.visitKeys(keys, callback)
 			if err != nil {
