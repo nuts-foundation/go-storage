@@ -23,7 +23,8 @@ var _ stoabs.Reader = (*shelf)(nil)
 var _ stoabs.Writer = (*shelf)(nil)
 
 // CreateRedisStore connects to a Redis database server using the given options.
-func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
+// The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
+func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -37,6 +38,7 @@ func CreateRedisStore(clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.
 	}
 
 	result := &store{
+		prefix: prefix,
 		client: client,
 		rs:     redsync.New(goredis.NewPool(client)),
 		mux:    &sync.RWMutex{},
@@ -54,6 +56,10 @@ type store struct {
 	rs     *redsync.Redsync
 	log    *logrus.Logger
 	mux    *sync.RWMutex
+	// prefix contains a string that is prepended to each key, to simulate separate databases.
+	// Redis doesn't supported named databases but only preconfigured, (numerically) indexed databases
+	// which isn't very practical.
+	prefix string
 }
 
 func (s *store) Close(ctx context.Context) error {
@@ -115,6 +121,7 @@ func (s *store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error 
 func (s *store) getShelf(shelfName string, writer redis.Cmdable, reader redis.Cmdable) *shelf {
 	return &shelf{
 		name:   shelfName,
+		prefix: s.prefix,
 		writer: writer,
 		reader: reader,
 		store:  s,
@@ -122,8 +129,9 @@ func (s *store) getShelf(shelfName string, writer redis.Cmdable, reader redis.Cm
 }
 
 func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
+	result := s.getShelf(shelfName, nil, s.client)
 	// TODO: Is this too slow? Should we change the API as to just return a Reader, even when the shelf does not exist?
-	scanCmd := s.client.Scan(context.TODO(), 0, toRedisKey(shelfName, stoabs.BytesKey("*")), 1)
+	scanCmd := s.client.Scan(context.TODO(), 0, result.toRedisKey(stoabs.BytesKey("*")), 1)
 	keys, _, err := scanCmd.Result()
 	if err != nil {
 		return nil, err
@@ -132,7 +140,7 @@ func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
 		// Shelf does not exist
 		return nil, nil
 	}
-	return s.getShelf(shelfName, nil, s.client), nil
+	return result, nil
 }
 
 func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
@@ -145,8 +153,7 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	// Obtain transaction-level write lock, if requested
 	var txMutex *redsync.Mutex
 	if opts.RequestsWriteLock() {
-		println("locking")
-		txMutex = s.rs.NewMutex("global")
+		txMutex = s.rs.NewMutex("lock_" + s.prefix)
 		err := txMutex.Lock()
 		if err != nil {
 			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
@@ -227,6 +234,7 @@ func (t tx) Unwrap() interface{} {
 
 type shelf struct {
 	name   string
+	prefix string
 	reader redis.Cmdable
 	// writer holds the Redis command writer for writing to the database.
 	// It is separate from the reader because writes use a transactional Redis pipeline, which buffers the commands.
@@ -239,15 +247,15 @@ func (s shelf) Put(key stoabs.Key, value []byte) error {
 	if err := s.store.checkOpen(); err != nil {
 		return err
 	}
-	return s.writer.Set(context.TODO(), toRedisKey(s.name, key), value, 0).Err()
+	return s.writer.Set(context.TODO(), s.toRedisKey(key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.writer.Del(context.TODO(), toRedisKey(s.name, key)).Err()
+	return s.writer.Del(context.TODO(), s.toRedisKey(key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	result, err := s.reader.Get(context.TODO(), toRedisKey(s.name, key)).Result()
+	result, err := s.reader.Get(context.TODO(), s.toRedisKey(key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -261,7 +269,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.name+"*", resultCount)
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), resultCount)
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -283,7 +291,7 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn) e
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
 	for curr := from; bytes.Compare(curr.Bytes(), to.Bytes()) == -1; curr = curr.Next() {
-		keys = append(keys, toRedisKey(s.name, curr))
+		keys = append(keys, s.toRedisKey(curr))
 		// We don't want to perform requests that are really large, so we limit it at resultCount keys
 		if numKeys >= resultCount {
 			err := s.visitKeys(keys, callback)
@@ -309,7 +317,7 @@ func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn) error {
 			// Value does not exist (anymore), or not a string
 			continue
 		}
-		err := callback(fromRedisKey(s.name, keys[i]), []byte(value.(string)))
+		err := callback(s.fromRedisKey(keys[i]), []byte(value.(string)))
 		if err != nil {
 			// Callback returned an error, stop iterate and return it
 			return err
@@ -325,14 +333,21 @@ func (s shelf) Stats() stoabs.ShelfStats {
 	}
 }
 
-func toRedisKey(shelfName string, key stoabs.Key) string {
+func (s shelf) toRedisKey(key stoabs.Key) string {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
-	return strings.Join([]string{shelfName, string(key.Bytes())}, ".")
+	result := s.name + "." + string(key.Bytes())
+	if len(s.prefix) > 0 {
+		result = s.prefix + ":" + result
+	}
+	return result
 }
 
-func fromRedisKey(shelfName string, key string) stoabs.Key {
+func (s shelf) fromRedisKey(key string) stoabs.Key {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
-	return stoabs.BytesKey(strings.TrimPrefix(key, shelfName+"."))
+	if len(s.prefix) > 0 {
+		key = strings.TrimPrefix(key, s.prefix+":")
+	}
+	return stoabs.BytesKey(strings.TrimPrefix(key, s.name+"."))
 }
