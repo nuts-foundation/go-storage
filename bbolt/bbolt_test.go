@@ -140,11 +140,12 @@ func TestBBolt_Read(t *testing.T) {
 		store, _ := createStore(t)
 
 		err := store.Read(func(tx stoabs.ReadTx) error {
-			bucket, err := tx.GetShelfReader(shelf)
+			bucket := tx.GetShelfReader(shelf)
+			value, err := bucket.Get(stoabs.BytesKey("key"))
 			if err != nil {
 				return err
 			}
-			if bucket == nil {
+			if value == nil {
 				return nil
 			}
 			t.Fatal()
@@ -226,7 +227,7 @@ func TestBBolt_ReadShelf(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.False(t, called)
+		assert.True(t, called)
 	})
 }
 

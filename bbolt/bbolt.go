@@ -147,13 +147,7 @@ func (b *store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error
 
 func (b *store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) error {
 	return b.doTX(func(tx *bbolt.Tx) error {
-		shelf, err := bboltTx{tx: tx, store: b}.GetShelfReader(shelfName)
-		if err != nil {
-			return err
-		}
-		if shelf == nil {
-			return nil
-		}
+		shelf := bboltTx{tx: tx, store: b}.GetShelfReader(shelfName)
 		return fn(shelf)
 	}, false, nil)
 }
@@ -209,7 +203,7 @@ func (b bboltTx) Unwrap() interface{} {
 	return b.tx
 }
 
-func (b bboltTx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
+func (b bboltTx) GetShelfReader(shelfName string) stoabs.Reader {
 	return b.getBucket(shelfName)
 }
 
@@ -221,12 +215,12 @@ func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	return &bboltShelf{bucket: bucket}, nil
 }
 
-func (b bboltTx) getBucket(shelfName string) (stoabs.Reader, error) {
+func (b bboltTx) getBucket(shelfName string) stoabs.Reader {
 	bucket := b.tx.Bucket([]byte(shelfName))
 	if bucket == nil {
-		return nil, nil
+		return stoabs.NilReader{}
 	}
-	return &bboltShelf{bucket: bucket}, nil
+	return &bboltShelf{bucket: bucket}
 }
 
 func (b bboltTx) Store() stoabs.KVStore {

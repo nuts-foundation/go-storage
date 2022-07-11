@@ -158,10 +158,32 @@ type WriteTx interface {
 
 // ReadTx is used to read from a KVStore.
 type ReadTx interface {
-	// GetShelfReader returns the specified shelf for reading. If it doesn't exist, nil is returned.
-	GetShelfReader(shelfName string) (Reader, error)
+	// GetShelfReader returns the specified shelf for reading. If it doesn't exist, a NilReader is returned that will return nil for all read operations.
+	GetShelfReader(shelfName string) Reader
 	// Store returns the KVStore on which the transaction is started
 	Store() KVStore
 	// Unwrap returns the underlying, database specific transaction object. If not supported, it returns nil.
 	Unwrap() interface{}
+}
+
+// NilReader is a shelfReader that always returns nil. It can be used when shelves do not exist.
+type NilReader struct{}
+
+func (n NilReader) Get(_ Key) ([]byte, error) {
+	return nil, nil
+}
+
+func (n NilReader) Iterate(_ CallerFn) error {
+	return nil
+}
+
+func (n NilReader) Range(_ Key, to Key, _ CallerFn) error {
+	return nil
+}
+
+func (n NilReader) Stats() ShelfStats {
+	return ShelfStats{
+		NumEntries: 0,
+		ShelfSize:  0,
+	}
 }
