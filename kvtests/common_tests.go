@@ -80,18 +80,20 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			assert.NoError(t, err)
-			assert.False(t, called)
+			assert.True(t, called)
 		})
 
 		t.Run("GetShelfReader for non-existing shelf", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
 			err := store.Read(func(tx stoabs.ReadTx) error {
-				bucket, err := tx.GetShelfReader(shelf)
+				shelf := tx.GetShelfReader(shelf)
+				value, err := shelf.Get(stoabs.BytesKey("key"))
 				if err != nil {
 					return err
 				}
-				if bucket == nil {
+				if value == nil {
+					// OK, NilReader should return nil
 					return nil
 				}
 				t.Fatal()

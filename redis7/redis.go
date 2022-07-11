@@ -107,14 +107,6 @@ func (s *store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error 
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
-
-	reader, err := s.getShelfReader(shelfName)
-	if err != nil {
-		return err
-	}
-	if reader == nil {
-		return nil
-	}
 	return fn(s.getShelf(shelfName, nil, s.client))
 }
 
@@ -126,21 +118,6 @@ func (s *store) getShelf(shelfName string, writer redis.Cmdable, reader redis.Cm
 		reader: reader,
 		store:  s,
 	}
-}
-
-func (s store) getShelfReader(shelfName string) (stoabs.Reader, error) {
-	result := s.getShelf(shelfName, nil, s.client)
-	// TODO: Is this too slow? Should we change the API as to just return a Reader, even when the shelf does not exist?
-	scanCmd := s.client.Scan(context.TODO(), 0, result.toRedisKey(stoabs.BytesKey("*")), 1)
-	keys, _, err := scanCmd.Result()
-	if err != nil {
-		return nil, err
-	}
-	if len(keys) == 0 {
-		// Shelf does not exist
-		return nil, nil
-	}
-	return result, nil
 }
 
 func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
@@ -213,15 +190,8 @@ func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	return t.store.getShelf(shelfName, t.writer, t.reader), nil
 }
 
-func (t tx) GetShelfReader(shelfName string) (stoabs.Reader, error) {
-	reader, err := t.store.getShelfReader(shelfName)
-	if err != nil {
-		return nil, err
-	}
-	if reader == nil {
-		return nil, nil
-	}
-	return reader, nil
+func (t tx) GetShelfReader(shelfName string) stoabs.Reader {
+	return t.store.getShelf(shelfName, nil, t.reader)
 }
 
 func (t tx) Store() stoabs.KVStore {
