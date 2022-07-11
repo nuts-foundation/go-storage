@@ -65,6 +65,7 @@ type store struct {
 func (s *store) Close(ctx context.Context) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+	s.log.Debug("Closing Redis store")
 	if s.client == nil {
 		// already closed
 		return nil
@@ -130,12 +131,15 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	// Obtain transaction-level write lock, if requested
 	var txMutex *redsync.Mutex
 	if opts.RequestsWriteLock() {
-		txMutex = s.rs.NewMutex("lock_" + s.prefix)
+		lockName := "lock_" + s.prefix
+		s.log.Tracef("Acquiring Redis distributed lock (name=%s)", lockName)
+		txMutex = s.rs.NewMutex(lockName)
 		err := txMutex.Lock()
 		if err != nil {
 			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
 		}
 		defer func(txMutex *redsync.Mutex, log *logrus.Logger) {
+			s.log.Tracef("Releasing Redis distributed lock (name=%s)", lockName)
 			_, err := txMutex.Unlock()
 			if err != nil {
 				log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
@@ -144,6 +148,7 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	}
 
 	// Start transaction, retrieve/create shelf to operate on
+	s.log.Tracef("Starting Redis transaction (TxPipeline)")
 	pl := s.client.TxPipeline()
 
 	// Perform TX action(s)
