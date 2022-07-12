@@ -35,6 +35,20 @@ type Key interface {
 	Next() Key
 }
 
+type StringKey string
+
+func (s StringKey) String() string {
+	return string(s)
+}
+
+func (s StringKey) Bytes() []byte {
+	return []byte(s)
+}
+
+func (s StringKey) Next() Key {
+	return StringKey(BytesKey(s).Next().Bytes())
+}
+
 // Uint32Key is a type helper for a uint32 as Key
 type Uint32Key uint32
 

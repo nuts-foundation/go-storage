@@ -69,3 +69,15 @@ func TestHashKey_Bytes(t *testing.T) {
 
 	assert.Equal(t, hex1, bytesKey.String())
 }
+
+func TestStringKey_Next(t *testing.T) {
+	assert.Equal(t, "Hello, Worle", StringKey("Hello, World").Next().String())
+	assert.Equal(t, "12345678:", StringKey("123456789").Next().String())
+}
+
+func TestStringKey_Bytes(t *testing.T) {
+	input := "Hello, World"
+	key := StringKey(input)
+
+	assert.Equal(t, []byte(input), key.Bytes())
+}
