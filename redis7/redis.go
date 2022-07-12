@@ -25,9 +25,7 @@ var _ stoabs.Writer = (*shelf)(nil)
 // CreateRedisStore connects to a Redis database server using the given options.
 // The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
 func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{
-		PageSize: resultCount,
-	}
+	cfg := stoabs.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -252,7 +250,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), int64(s.store.cfg.PageSize))
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), int64(resultCount))
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -274,7 +272,6 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 }
 
 func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
-	resultCount := s.store.cfg.PageSize
 	keys := make([]string, 0, resultCount)
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
