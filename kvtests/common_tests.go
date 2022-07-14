@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2022 Nuts community
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
+
 package kvtests
 
 import (
@@ -127,39 +145,75 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 
 func TestRange(t *testing.T, storeProvider StoreProvider) {
 	t.Run("range", func(t *testing.T) {
-		t.Run("returns correct key/values", func(t *testing.T) {
+		// b - b+1 - gap - b+3
+		type entry struct {
+			key   stoabs.Key
+			value []byte
+		}
+		input := []entry{
+			{key: bytesKey, value: bytesValue},
+		}
+		input = append(input, entry{key: input[0].key.Next(), value: bytesValue})
+		// Here's a gap
+		input = append(input, entry{key: input[1].key.Next().Next(), value: bytesValue})
+
+		t.Run("range over values (with gaps, stop at gaps)", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			from := bytesKey     // inclusive
 			to := largerBytesKey // exclusive
 
 			// Write some data
 			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
-				_ = writer.Put(largerBytesKey, bytesValue)
-				return writer.Put(bytesKey, bytesValue)
+				for _, e := range input {
+					_ = writer.Put(e.key, e.value)
+				}
+				return nil
 			})
 
-			var keys, values [][]byte
+			var actual []entry
 			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
-					keys = append(keys, key.Bytes())
-					values = append(values, value)
+					actual = append(actual, entry{
+						key:   key,
+						value: value,
+					})
 					return nil
-				})
+				}, true)
 
 				return err
 			})
-			if !assert.NoError(t, err) {
-				return
-			}
+			assert.NoError(t, err)
+			assert.Len(t, actual, 2)
+			assert.Equal(t, input[0], actual[0])
+			assert.Equal(t, input[1], actual[1])
+		})
+		t.Run("range over values (with gaps, but skip over gaps)", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			from := bytesKey     // inclusive
+			to := largerBytesKey // exclusive
 
-			if !assert.Len(t, keys, 1) {
-				return
-			}
-			if !assert.Len(t, values, 1) {
-				return
-			}
-			assert.Equal(t, bytesKey.Bytes(), keys[0])
-			assert.Equal(t, bytesValue, values[0])
+			// Write some data
+			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+				for _, e := range input {
+					_ = writer.Put(e.key, e.value)
+				}
+				return nil
+			})
+
+			var actual []entry
+			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
+					actual = append(actual, entry{
+						key:   key,
+						value: value,
+					})
+					return nil
+				}, false)
+
+				return err
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, input, actual)
 		})
 
 		t.Run("many results (2000 in store, want 1500)", func(t *testing.T) {
@@ -186,7 +240,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 					keys = append(keys, key.Bytes())
 					values = append(values, value)
 					return nil
-				})
+				}, false)
 				return err
 			})
 
@@ -209,7 +263,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
 					return errors.New("failure")
-				})
+				}, false)
 
 				return err
 			})
@@ -504,7 +558,7 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
-			assert.Equal(t, err, stoabs.ErrStoreIsClosed)
+			assert.Equal(t, err, bbolt.ErrDatabaseNotOpen)
 		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)

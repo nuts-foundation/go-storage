@@ -108,12 +108,6 @@ type store struct {
 }
 
 func (b *store) Close(ctx context.Context) error {
-	if b.db == nil {
-		return nil
-	}
-	defer func() {
-		b.db = nil
-	}()
 	return util.CallWithTimeout(ctx, b.db.Close, func() {
 		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
 	})
@@ -149,10 +143,6 @@ func (b *store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error)
 }
 
 func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
-	if err := b.checkOpen(); err != nil {
-		return err
-	}
-
 	opts := stoabs.TxOptions(optsSlice)
 
 	// Start transaction, retrieve/create shelf to operate on
@@ -191,13 +181,6 @@ func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []sto
 		return appError
 	}
 
-	return nil
-}
-
-func (b *store) checkOpen() error {
-	if b.db == nil {
-		return stoabs.ErrStoreIsClosed
-	}
 	return nil
 }
 
@@ -275,15 +258,21 @@ func (t bboltShelf) Iterate(callback stoabs.CallerFn) error {
 	return nil
 }
 
-func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, _ bool) error {
-	// TODO: stopAtNil is ignored for BBolt
+func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
 	cursor := t.bucket.Cursor()
+	var prevKey stoabs.Key
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
+		key := stoabs.BytesKey(k)
+		if stopAtNil && prevKey != nil && !bytes.Equal(prevKey.Next().Bytes(), key.Bytes()) {
+			// gap found, stop here
+			return nil
+		}
 		// return a copy to avoid data manipulation
 		vCopy := append(v[:0:0], v...)
-		if err := callback(stoabs.BytesKey(k), vCopy); err != nil {
+		if err := callback(key, vCopy); err != nil {
 			return err
 		}
+		prevKey = key
 	}
 	return nil
 }
