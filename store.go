@@ -87,7 +87,8 @@ type Reader interface {
 	// Get returns the value for the given key. If it does not exist it returns nil.
 	Get(key Key) ([]byte, error)
 	// Iterate walks over all key/value pairs for this shelf. Ordering is not guaranteed.
-	Iterate(callback CallerFn) error
+	// The caller will have to supply the correct key type, such that the keys can be parsed.
+	Iterate(callback CallerFn, keyType Key) error
 	// Range calls the callback for each key/value pair on this shelf from (inclusive) and to (exclusive) given keys.
 	// Ordering is guaranteed and determined by the type of Key given.
 	// If stopAtNil is true the operation stops when a non-existing key is encountered.
@@ -199,7 +200,7 @@ func (n NilReader) Get(_ Key) ([]byte, error) {
 	return nil, nil
 }
 
-func (n NilReader) Iterate(_ CallerFn) error {
+func (n NilReader) Iterate(_ CallerFn, _ Key) error {
 	return nil
 }
 

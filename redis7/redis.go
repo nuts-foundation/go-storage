@@ -262,12 +262,12 @@ func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 	return []byte(result), nil
 }
 
-func (s shelf) Iterate(callback stoabs.CallerFn) error {
+func (s shelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
 	var cursor uint64
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey("*")), int64(resultCount))
+		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey(""))+"*", int64(resultCount))
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -276,7 +276,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn) error {
 			// Nothing to iterate over
 			return nil
 		}
-		_, err := s.visitKeys(keys, callback, false)
+		_, err := s.visitKeys(keys, callback, keyType, false)
 		if err != nil {
 			return err
 		}
@@ -300,7 +300,7 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 		keys = append(keys, s.toRedisKey(curr))
 		// We don't want to perform requests that are really large, so we limit it at page size
 		if numKeys >= resultCount {
-			proceed, err := s.visitKeys(keys, callback, stopAtNil)
+			proceed, err := s.visitKeys(keys, callback, from, stopAtNil)
 			if err != nil || !proceed {
 				return err
 			}
@@ -310,11 +310,11 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 			numKeys++
 		}
 	}
-	_, err := s.visitKeys(keys, callback, stopAtNil)
+	_, err := s.visitKeys(keys, callback, from, stopAtNil)
 	return err
 }
 
-func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, stopAtNil bool) (bool, error) {
+func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, keyType stoabs.Key, stopAtNil bool) (bool, error) {
 	values, err := s.reader.MGet(context.TODO(), keys...).Result()
 	if err != nil {
 		return false, err
@@ -327,7 +327,11 @@ func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, stopAtNil bool
 			}
 			continue
 		}
-		err := callback(s.fromRedisKey(keys[i]), []byte(value.(string)))
+		key, err := s.fromRedisKey(keys[i], keyType)
+		if err != nil {
+			return true, err
+		}
+		err = callback(key, []byte(value.(string)))
 		if err != nil {
 			// Callback returned an error, stop iterate and return it
 			return false, err
@@ -346,18 +350,27 @@ func (s shelf) Stats() stoabs.ShelfStats {
 func (s shelf) toRedisKey(key stoabs.Key) string {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
-	result := s.name + "." + string(key.Bytes())
+	result := s.name + "." + key.String()
 	if len(s.prefix) > 0 {
 		result = s.prefix + ":" + result
 	}
 	return result
 }
 
-func (s shelf) fromRedisKey(key string) stoabs.Key {
+func (s shelf) fromRedisKey(key string, keyType stoabs.Key) (stoabs.Key, error) {
 	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
 	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
 	if len(s.prefix) > 0 {
-		key = strings.TrimPrefix(key, s.prefix+":")
+		dbPrefix := s.prefix + ":"
+		if !strings.HasPrefix(key, dbPrefix) {
+			return nil, fmt.Errorf("unexpected/missing database name in Redis key (expected=%s,key=%s)", dbPrefix, key)
+		}
+		key = strings.TrimPrefix(key, dbPrefix)
 	}
-	return stoabs.BytesKey(strings.TrimPrefix(key, s.name+"."))
+	// TODO: HEX DECODE?
+	shelfPrefix := s.name + "."
+	if !strings.HasPrefix(key, shelfPrefix) {
+		return nil, fmt.Errorf("unexpected/missing shelf name in Redis key (expected=%s,key=%s)", shelfPrefix, key)
+	}
+	return keyType.FromString(strings.TrimPrefix(key, shelfPrefix))
 }

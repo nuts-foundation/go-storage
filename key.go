@@ -24,14 +24,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strconv"
 )
 
 // Key is an abstraction for a key in a key/value pair. The underlying implementation determines if the string or byte representation is used.
 type Key interface {
 	fmt.Stringer
-
+	// FromString creates a new instance of this Key, parses it from the given string and returns it. It does not modify this key.
+	FromString(string) (Key, error)
 	// Bytes returns a byte representation of this key
 	Bytes() []byte
+	// FromBytes creates a new instance of this Key, parses it from the given byte slice and returns it. It does not modify this key.
+	FromBytes([]byte) (Key, error)
 	// Next returns the next logical key. The next for the number 1 would be 2. The next for the string "a" would be "b"
 	Next() Key
 	// Equals returns true when the given key is of same type and value.
@@ -41,15 +45,33 @@ type Key interface {
 // Uint32Key is a type helper for a uint32 as Key
 type Uint32Key uint32
 
+func (u Uint32Key) FromBytes(i []byte) (Key, error) {
+	if len(i) != 4 {
+		return nil, fmt.Errorf("given bytes (len=%d) can't be parsed as %T", len(i), u)
+	}
+	return Uint32Key(binary.BigEndian.Uint32(i)), nil
+}
+
 func (u Uint32Key) String() string {
 	return fmt.Sprintf("%d", u)
 }
 
+func (u Uint32Key) FromString(i string) (Key, error) {
+	result, err := strconv.ParseInt(i, 10, 32)
+	if err != nil {
+		return nil, fmt.Errorf("given string can't be parsed as %T: %w", u, err)
+	}
+	if result < 0 {
+		return nil, fmt.Errorf("given string can't be parsed as %T, because it yields a signed integer", u)
+	}
+	return Uint32Key(result), nil
+}
+
 // Bytes outputs the byte representation of the uint32 in BigEndian
 func (u Uint32Key) Bytes() []byte {
-	bytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(bytes[:], uint32(u))
-	return bytes
+	result := make([]byte, 4)
+	binary.BigEndian.PutUint32(result[:], uint32(u))
+	return result
 }
 
 func (u Uint32Key) Next() Key {
@@ -74,6 +96,23 @@ func (s HashKey) String() string {
 	return hex.EncodeToString(s[:])
 }
 
+func (s HashKey) FromString(i string) (Key, error) {
+	asBytes, err := hex.DecodeString(i)
+	if err != nil {
+		return nil, fmt.Errorf("given string can't be parsed as %T: %w", s, err)
+	}
+	return s.FromBytes(asBytes)
+}
+
+func (s HashKey) FromBytes(i []byte) (Key, error) {
+	if len(i) != len(s) {
+		return nil, fmt.Errorf("given bytes (len=%d) can't be parsed as %T", len(i), s)
+	}
+	var result HashKey
+	copy(result[:], i)
+	return result, nil
+}
+
 func (s HashKey) Bytes() []byte {
 	return s[:]
 }
@@ -83,8 +122,8 @@ func (s HashKey) Next() Key {
 	add := big.NewInt(1)
 	next.SetBytes(s[:])
 	next.Add(next, add)
-	bytes := next.Bytes()
-	return HashKey(*(*[32]byte)(bytes[:32]))
+	result := next.Bytes()
+	return HashKey(*(*[32]byte)(result[:32]))
 }
 
 func (s HashKey) Equals(other Key) bool {
@@ -100,8 +139,20 @@ func (b BytesKey) String() string {
 	return hex.EncodeToString(b)
 }
 
+func (b BytesKey) FromString(i string) (Key, error) {
+	asBytes, err := hex.DecodeString(i)
+	if err != nil {
+		return nil, fmt.Errorf("given string can't be parsed as %T: %w", b, err)
+	}
+	return b.FromBytes(asBytes)
+}
+
 func (b BytesKey) Bytes() []byte {
 	return b
+}
+
+func (b BytesKey) FromBytes(i []byte) (Key, error) {
+	return BytesKey(i), nil
 }
 
 func (b BytesKey) Next() Key {
