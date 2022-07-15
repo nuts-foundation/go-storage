@@ -51,6 +51,14 @@ func TestBytesKey_Bytes(t *testing.T) {
 	assert.Equal(t, bytes, key.Bytes())
 }
 
+func TestBytesKey_Equal(t *testing.T) {
+	key := BytesKey([]byte{0x09})
+
+	assert.True(t, key.Equals(BytesKey([]byte{0x09})))
+	assert.False(t, key.Equals(key.Next()))
+	assert.False(t, key.Equals(BytesKey("h")))
+}
+
 func TestHashKey_Next(t *testing.T) {
 	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
 	hex2 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d6"
@@ -68,4 +76,14 @@ func TestHashKey_Bytes(t *testing.T) {
 	bytesKey := BytesKey(key.Bytes())
 
 	assert.Equal(t, hex1, bytesKey.String())
+}
+
+func TestHashKey_Equals(t *testing.T) {
+	hex1 := "a40d35e4d56273e633ef7bbf8f1e97aabe74ccc3510bd9a9a07493eaf5f815d5"
+	bytes, _ := hex.DecodeString(hex1)
+	key := NewHashKey(*(*[32]byte)(bytes))
+
+	assert.True(t, key.Equals(key))
+	assert.False(t, key.Equals(key.Next()))
+	assert.False(t, key.Equals(BytesKey("h")))
 }

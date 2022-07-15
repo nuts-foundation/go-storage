@@ -19,6 +19,7 @@
 package stoabs
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -33,6 +34,8 @@ type Key interface {
 	Bytes() []byte
 	// Next returns the next logical key. The next for the number 1 would be 2. The next for the string "a" would be "b"
 	Next() Key
+	// Equals returns true when the given key is of same type and value.
+	Equals(other Key) bool
 }
 
 // Uint32Key is a type helper for a uint32 as Key
@@ -51,6 +54,11 @@ func (u Uint32Key) Bytes() []byte {
 
 func (u Uint32Key) Next() Key {
 	return u + 1
+}
+
+func (u Uint32Key) Equals(other Key) bool {
+	o, ok := other.(Uint32Key)
+	return ok && o == u
 }
 
 // HashKey is a type helper for a 256 bits hash as Key
@@ -79,6 +87,11 @@ func (s HashKey) Next() Key {
 	return HashKey(*(*[32]byte)(bytes[:32]))
 }
 
+func (s HashKey) Equals(other Key) bool {
+	o, ok := other.(HashKey)
+	return ok && o == s
+}
+
 // BytesKey is a type helper for a byte slice as Key
 type BytesKey []byte
 
@@ -97,4 +110,9 @@ func (b BytesKey) Next() Key {
 	next.SetBytes(b)
 	next.Add(next, add)
 	return BytesKey(next.Bytes())
+}
+
+func (b BytesKey) Equals(other Key) bool {
+	o, ok := other.(BytesKey)
+	return ok && bytes.Compare(b, o) == 0
 }

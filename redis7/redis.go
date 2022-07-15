@@ -19,7 +19,6 @@
 package redis7
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/go-redis/redis/v9"
@@ -293,7 +292,11 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 	keys := make([]string, 0, resultCount)
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
-	for curr := from; bytes.Compare(curr.Bytes(), to.Bytes()) == -1; curr = curr.Next() {
+	for curr := from; !curr.Equals(to); curr = curr.Next() {
+		if curr.Equals(to) {
+			// Reached end (exclusive)
+			break
+		}
 		keys = append(keys, s.toRedisKey(curr))
 		// We don't want to perform requests that are really large, so we limit it at page size
 		if numKeys >= resultCount {

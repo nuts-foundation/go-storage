@@ -26,7 +26,7 @@ import (
 )
 
 // ErrStoreIsClosed is returned when an operation is executed on a closed store.
-var ErrStoreIsClosed = errors.New("store is closed")
+var ErrStoreIsClosed = errors.New("database not open")
 
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.

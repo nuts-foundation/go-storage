@@ -263,7 +263,7 @@ func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Caller
 	var prevKey stoabs.Key
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
 		key := stoabs.BytesKey(k)
-		if stopAtNil && prevKey != nil && !bytes.Equal(prevKey.Next().Bytes(), key.Bytes()) {
+		if stopAtNil && prevKey != nil && !prevKey.Next().Equals(key) {
 			// gap found, stop here
 			return nil
 		}
