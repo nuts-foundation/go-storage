@@ -348,8 +348,6 @@ func (s shelf) Stats() stoabs.ShelfStats {
 }
 
 func (s shelf) toRedisKey(key stoabs.Key) string {
-	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
-	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
 	result := s.name + "." + key.String()
 	if len(s.prefix) > 0 {
 		result = s.prefix + ":" + result
@@ -358,8 +356,6 @@ func (s shelf) toRedisKey(key stoabs.Key) string {
 }
 
 func (s shelf) fromRedisKey(key string, keyType stoabs.Key) (stoabs.Key, error) {
-	// TODO: Does string(key) work for all keys? Especially when some kind of guaranteed ordering is expected?
-	// TODO: What is a good separator for shelf - key notation? Something that's highly unlikely to be used in a key (or maybe we should validate the keys)
 	if len(s.prefix) > 0 {
 		dbPrefix := s.prefix + ":"
 		if !strings.HasPrefix(key, dbPrefix) {
@@ -367,7 +363,6 @@ func (s shelf) fromRedisKey(key string, keyType stoabs.Key) (stoabs.Key, error) 
 		}
 		key = strings.TrimPrefix(key, dbPrefix)
 	}
-	// TODO: HEX DECODE?
 	shelfPrefix := s.name + "."
 	if !strings.HasPrefix(key, shelfPrefix) {
 		return nil, fmt.Errorf("unexpected/missing shelf name in Redis key (expected=%s,key=%s)", shelfPrefix, key)
