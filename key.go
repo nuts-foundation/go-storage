@@ -67,7 +67,6 @@ func (u Uint32Key) FromString(i string) (Key, error) {
 	return Uint32Key(result), nil
 }
 
-// Bytes outputs the byte representation of the uint32 in BigEndian
 func (u Uint32Key) Bytes() []byte {
 	result := make([]byte, 4)
 	binary.BigEndian.PutUint32(result[:], uint32(u))
@@ -91,7 +90,6 @@ func NewHashKey(bytes [32]byte) Key {
 	return HashKey(bytes)
 }
 
-// String returns the hex encoding of the 256 bits hash
 func (s HashKey) String() string {
 	return hex.EncodeToString(s[:])
 }
@@ -134,7 +132,6 @@ func (s HashKey) Equals(other Key) bool {
 // BytesKey is a type helper for a byte slice as Key
 type BytesKey []byte
 
-// String returns the byte slice as hex encoded
 func (b BytesKey) String() string {
 	return hex.EncodeToString(b)
 }
