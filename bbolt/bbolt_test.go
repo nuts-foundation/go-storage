@@ -60,7 +60,7 @@ func TestBBolt_Unwrap(t *testing.T) {
 	store, _ := createStore(t)
 
 	var tx interface{}
-	_ = store.Read(func(innerTx stoabs.ReadTx) error {
+	_ = store.Read(context.Background(), func(innerTx stoabs.ReadTx) error {
 		tx = innerTx.Unwrap()
 		return nil
 	})
@@ -69,10 +69,12 @@ func TestBBolt_Unwrap(t *testing.T) {
 }
 
 func TestBBolt_WriteShelf(t *testing.T) {
+	ctx := context.Background()
+
 	t.Run("rollback on application error", func(t *testing.T) {
 		store, _ := createStore(t)
 
-		err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+		err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 			err := writer.Put(stoabs.BytesKey(key), value)
 			if err != nil {
 				panic(err)
@@ -83,7 +85,7 @@ func TestBBolt_WriteShelf(t *testing.T) {
 
 		// Now assert the TX was rolled back
 		var actual []byte
-		err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+		err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 			actual, err = reader.Get(stoabs.BytesKey(key))
 			return err
 		})

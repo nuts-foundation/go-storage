@@ -103,51 +103,52 @@ func (s *store) Close(ctx context.Context) error {
 	return err
 }
 
-func (s *store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+func (s *store) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
 
-	return s.doTX(func(writer redis.Pipeliner) error {
-		return fn(&tx{writer: writer, reader: s.client, store: s})
+	return s.doTX(ctx, func(writer redis.Pipeliner) error {
+		return fn(&tx{writer: writer, reader: s.client, store: s, ctx: ctx})
 	}, opts)
 }
 
-func (s *store) Read(fn func(stoabs.ReadTx) error) error {
+func (s *store) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
 
-	return fn(&tx{reader: s.client, store: s})
+	return fn(&tx{reader: s.client, store: s, ctx: ctx})
 }
 
-func (s *store) WriteShelf(shelfName string, fn func(stoabs.Writer) error) error {
+func (s *store) WriteShelf(ctx context.Context, shelfName string, fn func(stoabs.Writer) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
-	return s.doTX(func(tx redis.Pipeliner) error {
-		return fn(s.getShelf(shelfName, tx, s.client))
+	return s.doTX(ctx, func(tx redis.Pipeliner) error {
+		return fn(s.getShelf(ctx, shelfName, tx, s.client))
 	}, nil)
 }
 
-func (s *store) ReadShelf(shelfName string, fn func(stoabs.Reader) error) error {
+func (s *store) ReadShelf(ctx context.Context, shelfName string, fn func(stoabs.Reader) error) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
-	return fn(s.getShelf(shelfName, nil, s.client))
+	return fn(s.getShelf(ctx, shelfName, nil, s.client))
 }
 
-func (s *store) getShelf(shelfName string, writer redis.Cmdable, reader redis.Cmdable) *shelf {
+func (s *store) getShelf(ctx context.Context, shelfName string, writer redis.Cmdable, reader redis.Cmdable) *shelf {
 	return &shelf{
 		name:   shelfName,
 		prefix: s.prefix,
 		writer: writer,
 		reader: reader,
 		store:  s,
+		ctx:    ctx,
 	}
 }
 
-func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
+func (s *store) doTX(ctx context.Context, fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
@@ -160,13 +161,13 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 		lockName := "lock_" + s.prefix
 		s.log.Tracef("Acquiring Redis distributed lock (name=%s)", lockName)
 		txMutex = s.rs.NewMutex(lockName, s.rsOpts...)
-		err := txMutex.Lock()
+		err := txMutex.LockContext(ctx)
 		if err != nil {
 			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
 		}
 		defer func(txMutex *redsync.Mutex, log *logrus.Logger) {
 			s.log.Tracef("Releasing Redis distributed lock (name=%s)", lockName)
-			_, err := txMutex.Unlock()
+			_, err := txMutex.UnlockContext(ctx)
 			if err != nil {
 				log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
 			}
@@ -193,13 +194,13 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 			return stoabs.ErrLockExpired
 		} else if txMutex != nil && time.Now().Sub(txMutex.Until()) < time.Second {
 			// TX lock expires soon. Extend it, so we have time to commit.
-			extended, err := txMutex.Extend()
+			extended, err := txMutex.ExtendContext(ctx)
 			if !extended || err != nil {
 				s.log.Errorf("Unable to extend Redis transaction write lock: %s", err)
 			}
 			s.log.Debug("Extended Redis transaction write lock to ensure proper commit.")
 		}
-		cmdErrs, err := pl.Exec(context.TODO())
+		cmdErrs, err := pl.Exec(ctx)
 
 		if err != nil {
 			for _, cmdErr := range cmdErrs {
@@ -232,14 +233,15 @@ type tx struct {
 	reader redis.Cmdable
 	writer redis.Cmdable
 	store  *store
+	ctx    context.Context
 }
 
 func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return t.store.getShelf(shelfName, t.writer, t.reader), nil
+	return t.store.getShelf(t.ctx, shelfName, t.writer, t.reader), nil
 }
 
 func (t tx) GetShelfReader(shelfName string) stoabs.Reader {
-	return t.store.getShelf(shelfName, nil, t.reader)
+	return t.store.getShelf(t.ctx, shelfName, nil, t.reader)
 }
 
 func (t tx) Store() stoabs.KVStore {
@@ -259,21 +261,22 @@ type shelf struct {
 	// Buffering read commands would result in unexpected behaviour where the reads are only executed on transaction commit.
 	writer redis.Cmdable
 	store  *store
+	ctx    context.Context
 }
 
 func (s shelf) Put(key stoabs.Key, value []byte) error {
 	if err := s.store.checkOpen(); err != nil {
 		return err
 	}
-	return s.writer.Set(context.TODO(), s.toRedisKey(key), value, 0).Err()
+	return s.writer.Set(s.ctx, s.toRedisKey(key), value, 0).Err()
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.writer.Del(context.TODO(), s.toRedisKey(key)).Err()
+	return s.writer.Del(s.ctx, s.toRedisKey(key)).Err()
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
-	result, err := s.reader.Get(context.TODO(), s.toRedisKey(key)).Result()
+	result, err := s.reader.Get(s.ctx, s.toRedisKey(key)).Result()
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
@@ -287,7 +290,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
 	var err error
 	var keys []string
 	for {
-		scanCmd := s.reader.Scan(context.TODO(), cursor, s.toRedisKey(stoabs.BytesKey(""))+"*", int64(resultCount))
+		scanCmd := s.reader.Scan(s.ctx, cursor, s.toRedisKey(stoabs.BytesKey(""))+"*", int64(resultCount))
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
 			return err
@@ -313,6 +316,9 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
 	for curr := from; !curr.Equals(to); curr = curr.Next() {
+		if s.ctx.Err() != nil {
+			return s.ctx.Err()
+		}
 		if curr.Equals(to) {
 			// Reached end (exclusive)
 			break
@@ -335,7 +341,7 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 }
 
 func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, keyType stoabs.Key, stopAtNil bool) (bool, error) {
-	values, err := s.reader.MGet(context.TODO(), keys...).Result()
+	values, err := s.reader.MGet(s.ctx, keys...).Result()
 	if err != nil {
 		return false, err
 	}

@@ -44,11 +44,13 @@ const shelf = "test"
 type StoreProvider func(t *testing.T) (stoabs.KVStore, error)
 
 func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("read/write", func(t *testing.T) {
 		t.Run("write, then read ([]byte])", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				writer, err := tx.GetShelfWriter(shelf)
 				if err != nil {
 					return err
@@ -60,7 +62,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			}
 
 			var actual []byte
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
@@ -70,7 +72,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 		t.Run("write, then read (string)", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				writer, err := tx.GetShelfWriter(shelf)
 				if err != nil {
 					return err
@@ -82,7 +84,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			}
 
 			var actual []byte
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				actual, err = reader.Get(stoabs.BytesKey(stringKey))
 				return err
 			})
@@ -94,7 +96,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			called := false
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				called = true
 				return nil
 			})
@@ -106,7 +108,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 		t.Run("GetShelfReader for non-existing shelf", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
-			err := store.Read(func(tx stoabs.ReadTx) error {
+			err := store.Read(ctx, func(tx stoabs.ReadTx) error {
 				shelf := tx.GetShelfReader(shelf)
 				value, err := shelf.Get(stoabs.BytesKey("key"))
 				if err != nil {
@@ -125,7 +127,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 		t.Run("read non-existing key", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(stoabs.BytesKey(stringKey), []byte(stringValue))
 			})
 			if !assert.NoError(t, err) {
@@ -133,7 +135,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			}
 
 			var actual []byte
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
@@ -146,6 +148,8 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestRange(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("Range()", func(t *testing.T) {
 		// b - b+1 - gap - b+3
 		type entry struct {
@@ -165,7 +169,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			to := largerBytesKey // exclusive
 
 			// Write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				for _, e := range input {
 					_ = writer.Put(e.key, e.value)
 				}
@@ -173,7 +177,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			var actual []entry
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
 					actual = append(actual, entry{
 						key:   key,
@@ -195,7 +199,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			to := largerBytesKey // exclusive
 
 			// Write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				for _, e := range input {
 					_ = writer.Put(e.key, e.value)
 				}
@@ -203,7 +207,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			var actual []entry
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
 					actual = append(actual, entry{
 						key:   key,
@@ -224,7 +228,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			var to stoabs.Key
 
 			var currentKey stoabs.Key = from
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				for i := 1; i <= 2000; i++ {
 					if i == 1501 { // end is exclusive
 						to = currentKey
@@ -237,7 +241,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 
 			// Range from..to
 			var keys, values [][]byte
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
 					keys = append(keys, key.Bytes())
 					values = append(values, value)
@@ -258,11 +262,11 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			to := largerBytesKey // exclusive
 
 			// Write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
 
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Range(from, to, func(key stoabs.Key, value []byte) error {
 					return errors.New("failure")
 				}, false)
@@ -272,22 +276,45 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 
 			assert.EqualError(t, err, "failure")
 		})
+
+		t.Run("TX context cancelled", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			// Write some data
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
+				return writer.Put(bytesKey, bytesValue)
+			})
+
+			// Cancel read context
+			ctx, cancel := context.WithCancel(ctx)
+			cancel()
+
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
+				return reader.Range(bytesKey, largerBytesKey, func(key stoabs.Key, value []byte) error {
+					return nil
+				}, false)
+			})
+
+			assert.ErrorIs(t, err, context.Canceled)
+		})
 	})
 }
 
 func TestIterate(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("Iterate()", func(t *testing.T) {
 		t.Run("iterates over all keys", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
 			// Write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				_ = writer.Put(bytesKey, bytesValue)
 				return writer.Put(largerBytesKey, largerBytesValue)
 			})
 
 			var keys, values [][]byte
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Iterate(func(key stoabs.Key, value []byte) error {
 					keys = append(keys, key.Bytes())
 					values = append(values, value)
@@ -324,7 +351,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			// Write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				for _, key := range expectedKeys {
 					_ = writer.Put(key, (key + 1000).Bytes())
 				}
@@ -332,7 +359,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			var actualKeys []stoabs.Key
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Iterate(func(key stoabs.Key, value []byte) error {
 					actualKeys = append(actualKeys, key)
 					return nil
@@ -351,7 +378,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			var keys, values [][]byte
-			err := store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Iterate(func(key stoabs.Key, value []byte) error {
 					keys = append(keys, key.Bytes())
 					values = append(values, value)
@@ -369,14 +396,14 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			// Write some data otherwise shelf is empty and no error can be returned
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
 			if !assert.NoError(t, err) {
 				return
 			}
 
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				err := reader.Iterate(func(key stoabs.Key, value []byte) error {
 					return errors.New("failure")
 				}, stoabs.BytesKey{})
@@ -385,17 +412,40 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			})
 			assert.EqualError(t, err, "failure")
 		})
+
+		t.Run("TX context cancelled", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			// Write some data
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
+				return writer.Put(bytesKey, bytesValue)
+			})
+
+			// Cancel read context
+			ctx, cancel := context.WithCancel(ctx)
+			cancel()
+
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
+				return reader.Iterate(func(key stoabs.Key, value []byte) error {
+					return nil
+				}, stoabs.BytesKey{})
+			})
+
+			assert.ErrorIs(t, err, context.Canceled)
+		})
 	})
 }
 
 func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("write transactions", func(t *testing.T) {
 		t.Run("onRollback called, afterCommit not called when commit fails", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
 			var rollbackCalled = false
 			var afterCommitCalled = false
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				switch dbTX := tx.Unwrap().(type) {
 				case *bbolt.Tx:
 					_ = dbTX.Rollback()
@@ -421,14 +471,14 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			thirdKey := secondKey.Next()
 
 			// First write some data
-			_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				_ = writer.Put(firstKey, bytesValue)
 				return nil
 			})
 
 			// Then write some data in a TX that is rolled back
 			var actualValue []byte
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				_ = writer.Put(secondKey, bytesValue)
 				_ = writer.Put(thirdKey, bytesValue)
 				// Also read a value to assert it doesn't accidentally commit the writes above (Redis)
@@ -440,7 +490,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 
 			// Assert that the first key can be read, but the second and third keys not
 			var actual []stoabs.Key
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				return reader.Iterate(func(key stoabs.Key, _ []byte) error {
 					actual = append(actual, key)
 					return nil
@@ -460,7 +510,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			var innerError error
 			var onRollbackCalled bool
 
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				writer, err := tx.GetShelfWriter(shelf)
 				if err != nil {
 					return err
@@ -468,7 +518,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				return writer.Put(bytesKey, bytesValue)
 			}, stoabs.AfterCommit(func() {
 				// Happens after commit, so we should be able to read the data now
-				innerError = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+				innerError = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 					actual, innerError = reader.Get(bytesKey)
 					return innerError
 				})
@@ -489,7 +539,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			var afterCommitCalled bool
 			var onRollbackCalled bool
 
-			_ = store.Write(func(tx stoabs.WriteTx) error {
+			_ = store.Write(ctx, func(tx stoabs.WriteTx) error {
 				return errors.New("failed")
 			}, stoabs.AfterCommit(func() {
 				afterCommitCalled = true
@@ -502,15 +552,51 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 		})
 		t.Run("store is set on transaction", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			_ = store.Write(func(tx stoabs.WriteTx) error {
+			_ = store.Write(ctx, func(tx stoabs.WriteTx) error {
 				assert.True(t, tx.Store() == store)
 				return nil
 			})
+		})
+		t.Run("context cancellation prevents commit", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			callbackWaiter := &sync.Mutex{}
+			callbackWaiter.Lock()
+
+			errs := make(chan error)
+
+			ctx, cancel := context.WithCancel(ctx)
+			go func() {
+				errs <- store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
+					// Now write something that should never be committed
+					err := writer.Put(bytesKey, bytesValue)
+					callbackWaiter.Unlock()
+					// Wait until context is cancelled, blocking TX commit
+					<-ctx.Done()
+					return err
+				})
+			}()
+
+			// Wait until WriteShelf callback is active
+			callbackWaiter.Lock()
+			cancel()
+
+			// Transaction should now have been aborted because context was cancelled
+			assert.ErrorIs(t, <-errs, stoabs.ErrCommitFailed)
+			// Assert value hasn't been ommitted
+			var actual []byte
+			err := store.ReadShelf(context.Background(), shelf, func(reader stoabs.Reader) error {
+				var err error
+				actual, err = reader.Get(bytesKey)
+				return err
+			})
+			assert.NoError(t, err)
+			assert.Nil(t, actual)
 		})
 	})
 }
 
 func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
 	supportsLockExpiry := func(store stoabs.KVStore) bool {
 		return fmt.Sprintf("%T", store) != "*bbolt.store"
 	}
@@ -529,7 +615,7 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 			for i := 0; i < numTXs; i++ {
 				wg.Add(1)
 				go func(mux *sync.Mutex, idx int) {
-					err := store.Write(func(tx stoabs.WriteTx) error {
+					err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 						logrus.Infof("starting %d", idx)
 						if !mux.TryLock() {
 							return errors.New("concurrent write transactions detected")
@@ -566,14 +652,14 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 			errs := make(chan error)
 
 			go func() {
-				errs <- store.Write(func(tx stoabs.WriteTx) error {
+				errs <- store.Write(ctx, func(tx stoabs.WriteTx) error {
 					wg.Done()
 					time.Sleep(time.Second) // Longer than lock expiry (500ms)
 					return nil
 				}, stoabs.WithWriteLock())
 			}()
 
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				return nil
 			}, stoabs.WithWriteLock())
 			if !assert.NoError(t, err) {
@@ -593,14 +679,14 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 			errs := make(chan error)
 
 			go func() {
-				errs <- store.Write(func(tx stoabs.WriteTx) error {
+				errs <- store.Write(ctx, func(tx stoabs.WriteTx) error {
 					wg.Done()
 					time.Sleep(250 * time.Millisecond) // Bit shorter than lock expiry
 					return nil
 				}, stoabs.WithWriteLock())
 			}()
 
-			err := store.Write(func(tx stoabs.WriteTx) error {
+			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				return nil
 			}, stoabs.WithWriteLock())
 			if !assert.NoError(t, err) {
@@ -614,23 +700,25 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestDelete(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("Delete()", func(t *testing.T) {
 		t.Run("write, delete, read", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			// Write
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				_ = writer.Put(bytesKey, bytesValue)
 				return writer.Put(largerBytesKey, bytesValue)
 			})
 			assert.NoError(t, err)
 			// Delete
-			err = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Delete(bytesKey)
 			})
 			assert.NoError(t, err)
 			// Read, assert
 			var actual []byte
-			err = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
@@ -639,7 +727,7 @@ func TestDelete(t *testing.T, storeProvider StoreProvider) {
 		})
 		t.Run("delete non-existing entry", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Delete(bytesKey)
 			})
 			assert.NoError(t, err)
@@ -648,6 +736,8 @@ func TestDelete(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestClose(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	t.Run("Close()", func(t *testing.T) {
 		t.Run("close closed store", func(t *testing.T) {
 			store := createStore(t, storeProvider)
@@ -657,7 +747,7 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 		t.Run("write to closed store", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			assert.NoError(t, store.Close(context.Background()))
-			err := store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
 			assert.Equal(t, err, stoabs.ErrStoreIsClosed)
@@ -673,10 +763,12 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestStats(t *testing.T, storeProvider StoreProvider) {
+	ctx := context.Background()
+
 	store := createStore(t, storeProvider)
 	getStats := func(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
 		var stats stoabs.ShelfStats
-		_ = store.ReadShelf(shelf, func(reader stoabs.Reader) error {
+		_ = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 			stats = reader.Stats()
 			return nil
 		})
@@ -690,7 +782,7 @@ func TestStats(t *testing.T, storeProvider StoreProvider) {
 	})
 
 	t.Run("non-empty", func(t *testing.T) {
-		_ = store.WriteShelf(shelf, func(writer stoabs.Writer) error {
+		_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 			return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
 		})
 

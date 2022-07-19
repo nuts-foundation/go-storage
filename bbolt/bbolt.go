@@ -113,21 +113,21 @@ func (b *store) Close(ctx context.Context) error {
 	})
 }
 
-func (b *store) Write(fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
-	return b.doTX(func(tx *bbolt.Tx) error {
-		return fn(&bboltTx{tx: tx, store: b})
+func (b *store) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+	return b.doTX(ctx, func(tx *bbolt.Tx) error {
+		return fn(&bboltTx{tx: tx, store: b, ctx: ctx})
 	}, true, opts)
 }
 
-func (b *store) Read(fn func(stoabs.ReadTx) error) error {
-	return b.doTX(func(tx *bbolt.Tx) error {
-		return fn(&bboltTx{tx: tx, store: b})
+func (b *store) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
+	return b.doTX(ctx, func(tx *bbolt.Tx) error {
+		return fn(&bboltTx{tx: tx, store: b, ctx: ctx})
 	}, false, nil)
 }
 
-func (b *store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error) error {
-	return b.doTX(func(tx *bbolt.Tx) error {
-		shelf, err := bboltTx{tx: tx, store: b}.GetShelfWriter(shelfName)
+func (b *store) WriteShelf(ctx context.Context, shelfName string, fn func(writer stoabs.Writer) error) error {
+	return b.doTX(ctx, func(tx *bbolt.Tx) error {
+		shelf, err := bboltTx{tx: tx, store: b, ctx: ctx}.GetShelfWriter(shelfName)
 		if err != nil {
 			return err
 		}
@@ -135,14 +135,14 @@ func (b *store) WriteShelf(shelfName string, fn func(writer stoabs.Writer) error
 	}, true, nil)
 }
 
-func (b *store) ReadShelf(shelfName string, fn func(reader stoabs.Reader) error) error {
-	return b.doTX(func(tx *bbolt.Tx) error {
-		shelf := bboltTx{tx: tx, store: b}.GetShelfReader(shelfName)
+func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader stoabs.Reader) error) error {
+	return b.doTX(ctx, func(tx *bbolt.Tx) error {
+		shelf := bboltTx{tx: tx, store: b, ctx: ctx}.GetShelfReader(shelfName)
 		return fn(shelf)
 	}, false, nil)
 }
 
-func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
+func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
 	opts := stoabs.TxOptions(optsSlice)
 
 	// Start transaction, retrieve/create shelf to operate on
@@ -156,27 +156,28 @@ func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []sto
 
 	// Writable TXs should be committed, non-writable TXs rolled back
 	if !writable {
-		err := dbTX.Rollback()
-		if err != nil {
-			b.log.WithError(err).Error("Could not rollback BBolt transaction")
-		}
+		rollbackTX(dbTX, b.log)
 		return appError
 	}
 	// Observe result, commit/rollback
 	if appError == nil {
 		b.log.Trace("Committing BBolt transaction")
-		err := dbTX.Commit()
+		// Check context cancellation, if not cancelled/expired; commit.
+		if ctx.Err() != nil {
+			err = ctx.Err()
+			rollbackTX(dbTX, b.log)
+		} else {
+			err = dbTX.Commit()
+		}
 		if err != nil {
 			opts.InvokeOnRollback()
 			return util.WrapError(stoabs.ErrCommitFailed, err)
 		}
+
 		opts.InvokeAfterCommit()
 	} else {
 		b.log.WithError(appError).Warn("Rolling back transaction application due to error")
-		err := dbTX.Rollback()
-		if err != nil {
-			b.log.WithError(err).Error("Could not rollback BBolt transaction")
-		}
+		rollbackTX(dbTX, b.log)
 		opts.InvokeOnRollback()
 		return appError
 	}
@@ -184,9 +185,17 @@ func (b *store) doTX(fn func(tx *bbolt.Tx) error, writable bool, optsSlice []sto
 	return nil
 }
 
+func rollbackTX(dbTX *bbolt.Tx, log *logrus.Logger) {
+	err := dbTX.Rollback()
+	if err != nil {
+		log.WithError(err).Error("Could not rollback BBolt transaction")
+	}
+}
+
 type bboltTx struct {
 	store *store
 	tx    *bbolt.Tx
+	ctx   context.Context
 }
 
 func (b bboltTx) Unwrap() interface{} {
@@ -202,7 +211,7 @@ func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &bboltShelf{bucket: bucket}, nil
+	return &bboltShelf{bucket: bucket, ctx: b.ctx}, nil
 }
 
 func (b bboltTx) getBucket(shelfName string) stoabs.Reader {
@@ -210,7 +219,7 @@ func (b bboltTx) getBucket(shelfName string) stoabs.Reader {
 	if bucket == nil {
 		return stoabs.NilReader{}
 	}
-	return &bboltShelf{bucket: bucket}
+	return &bboltShelf{bucket: bucket, ctx: b.ctx}
 }
 
 func (b bboltTx) Store() stoabs.KVStore {
@@ -219,6 +228,7 @@ func (b bboltTx) Store() stoabs.KVStore {
 
 type bboltShelf struct {
 	bucket *bbolt.Bucket
+	ctx    context.Context
 }
 
 func (t bboltShelf) Get(key stoabs.Key) ([]byte, error) {
@@ -249,6 +259,10 @@ func (t bboltShelf) Stats() stoabs.ShelfStats {
 func (t bboltShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
 	cursor := t.bucket.Cursor()
 	for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+		// Potentially long-running operation, check context for cancellation
+		if t.ctx.Err() != nil {
+			return t.ctx.Err()
+		}
 		// return a copy to avoid data manipulation
 		vCopy := append(v[:0:0], v...)
 		key, err := keyType.FromBytes(k)
@@ -266,6 +280,10 @@ func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Caller
 	cursor := t.bucket.Cursor()
 	var prevKey stoabs.Key
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
+		// Potentially long-running operation, check context for cancellation
+		if t.ctx.Err() != nil {
+			return t.ctx.Err()
+		}
 		key, err := from.FromBytes(k)
 		if err != nil {
 			return err

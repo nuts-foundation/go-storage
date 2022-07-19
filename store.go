@@ -35,16 +35,20 @@ type KVStore interface {
 	// Write starts a writable transaction and passes it to the given function.
 	// Callers should not try to read values which are written in the same transactions, and thus haven't been committed yet.
 	// The result when doing so depends on transaction isolation of the underlying database.
-	Write(fn func(WriteTx) error, opts ...TxOption) error
+	// The passed context can be used to cancel long-running operations or the final commit of the transaction.
+	Write(ctx context.Context, fn func(WriteTx) error, opts ...TxOption) error
 	// Read starts a read-only transaction and passes it to the given function.
-	Read(fn func(ReadTx) error) error
+	// The passed context can be used to cancel long-running read operations.
+	Read(ctx context.Context, fn func(ReadTx) error) error
 	// WriteShelf starts a writable transaction, open a writer for the specified shelf and passes it to the given function.
 	// If the shelf does not exist, it will be created.
 	// The same semantics of Write apply.
-	WriteShelf(shelfName string, fn func(Writer) error) error
+	// The passed context can be used to cancel long-running operations or the final commit of the transaction.
+	WriteShelf(ctx context.Context, shelfName string, fn func(Writer) error) error
 	// ReadShelf starts a read-only transaction, open a reader for the specified shelf and passes it to the given function.
 	// If the shelf does not exist, the function is not called.
-	ReadShelf(shelfName string, fn func(Reader) error) error
+	// The passed context can be used to cancel long-running read operations.
+	ReadShelf(ctx context.Context, shelfName string, fn func(Reader) error) error
 }
 
 type Option func(config *Config)
