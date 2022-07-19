@@ -21,12 +21,15 @@ package stoabs
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
 // ErrStoreIsClosed is returned when an operation is executed on a closed store.
 var ErrStoreIsClosed = errors.New("database not open")
+
+const DefaultTransactionTimeout = 30 * time.Second
 
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
@@ -113,9 +116,6 @@ type Writer interface {
 
 // ErrCommitFailed is returned when the commit of transaction fails.
 var ErrCommitFailed = errors.New("unable to commit transaction")
-
-// ErrLockExpired is returned when an operation fails because a database lock has expired.
-var ErrLockExpired = errors.New("database lock has expired")
 
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.

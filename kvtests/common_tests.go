@@ -581,7 +581,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			cancel()
 
 			// Transaction should now have been aborted because context was cancelled
-			assert.ErrorIs(t, <-errs, stoabs.ErrCommitFailed)
+			assert.ErrorIs(t, <-errs, context.Canceled)
 			// Assert value hasn't been ommitted
 			var actual []byte
 			err := store.ReadShelf(context.Background(), shelf, func(reader stoabs.Reader) error {
@@ -641,60 +641,21 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 			// Check for failures
 			assert.Len(t, failures, 0)
 		})
-		t.Run("Lock is expired", func(t *testing.T) {
+
+		t.Run("context expired", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			if !supportsLockExpiry(store) {
 				t.SkipNow()
 			}
 
-			wg := &sync.WaitGroup{}
-			wg.Add(1)
-			errs := make(chan error)
-
-			go func() {
-				errs <- store.Write(ctx, func(tx stoabs.WriteTx) error {
-					wg.Done()
-					time.Sleep(time.Second) // Longer than lock expiry (500ms)
-					return nil
-				}, stoabs.WithWriteLock())
-			}()
+			ctx, _ := context.WithTimeout(ctx, 500*time.Millisecond)
 
 			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
+				time.Sleep(time.Second)
 				return nil
 			}, stoabs.WithWriteLock())
-			if !assert.NoError(t, err) {
-				return
-			}
 
-			assert.ErrorIs(t, <-errs, stoabs.ErrLockExpired)
-		})
-		t.Run("Lock almost expires", func(t *testing.T) {
-			store := createStore(t, storeProvider)
-			if !supportsLockExpiry(store) {
-				t.SkipNow()
-			}
-
-			wg := &sync.WaitGroup{}
-			wg.Add(1)
-			errs := make(chan error)
-
-			go func() {
-				errs <- store.Write(ctx, func(tx stoabs.WriteTx) error {
-					wg.Done()
-					time.Sleep(250 * time.Millisecond) // Bit shorter than lock expiry
-					return nil
-				}, stoabs.WithWriteLock())
-			}()
-
-			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
-				return nil
-			}, stoabs.WithWriteLock())
-			if !assert.NoError(t, err) {
-				return
-			}
-			if !assert.NoError(t, <-errs) {
-				return
-			}
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
 		})
 	})
 }
