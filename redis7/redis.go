@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"strings"
 	"sync"
+	"time"
 )
 
 const resultCount = 1000
@@ -41,7 +42,7 @@ var _ stoabs.Writer = (*shelf)(nil)
 
 // CreateRedisStore connects to a Redis database server using the given options.
 // The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
-func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
+func CreateRedisStore(prefix string, clientOpts *redis.Options, lockOpts []redsync.Option, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -69,6 +70,7 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 
 	result.client = client
 	result.rs = redsync.New(goredis.NewPool(client))
+	result.rsOpts = append([]redsync.Option{}, lockOpts...)
 
 	return result, nil
 }
@@ -76,6 +78,7 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 type store struct {
 	client *redis.Client
 	rs     *redsync.Redsync
+	rsOpts []redsync.Option
 	log    *logrus.Logger
 	mux    *sync.RWMutex
 	// prefix contains a string that is prepended to each key, to simulate separate databases.
@@ -156,7 +159,7 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	if opts.RequestsWriteLock() {
 		lockName := "lock_" + s.prefix
 		s.log.Tracef("Acquiring Redis distributed lock (name=%s)", lockName)
-		txMutex = s.rs.NewMutex(lockName)
+		txMutex = s.rs.NewMutex(lockName, s.rsOpts...)
 		err := txMutex.Lock()
 		if err != nil {
 			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
@@ -180,7 +183,24 @@ func (s *store) doTX(fn func(tx redis.Pipeliner) error, optsSlice []stoabs.TxOpt
 	// Observe result, commit/rollback
 	if appError == nil {
 		s.log.Trace("Committing Redis transaction (TxPipeline)")
+		// We need to check whether we still hold the lock, and if we have enough time to commit the TX.
+		// If there's too little time, we need to extend the lock.
+		if txMutex != nil && !time.Now().Before(txMutex.Until()) {
+			// TX lock expired
+			pl.Discard()
+			s.log.Error("Unable to commit Redis transaction, write lock expired.")
+			opts.InvokeOnRollback()
+			return stoabs.ErrLockExpired
+		} else if txMutex != nil && time.Now().Sub(txMutex.Until()) < time.Second {
+			// TX lock expires soon. Extend it, so we have time to commit.
+			extended, err := txMutex.Extend()
+			if !extended || err != nil {
+				s.log.Errorf("Unable to extend Redis transaction write lock: %s", err)
+			}
+			s.log.Debug("Extended Redis transaction write lock to ensure proper commit.")
+		}
 		cmdErrs, err := pl.Exec(context.TODO())
+
 		if err != nil {
 			for _, cmdErr := range cmdErrs {
 				s.log.WithError(cmdErr.Err()).Errorf("Redis pipeline command failed: %s", cmdErr.String())

@@ -21,10 +21,12 @@ package redis7
 import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v9"
+	"github.com/go-redsync/redsync/v4"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/kvtests"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestRedis(t *testing.T) {
@@ -40,6 +42,7 @@ func TestRedis(t *testing.T) {
 		kvtests.TestTransactionWriteLock(t, provider)
 	}
 
+	lockOpts := []redsync.Option{redsync.WithExpiry(500 * time.Millisecond)}
 	t.Run("with database prefix", func(t *testing.T) {
 		runTests(t, func(t *testing.T) (stoabs.KVStore, error) {
 			s := miniredis.RunT(t)
@@ -48,7 +51,7 @@ func TestRedis(t *testing.T) {
 			})
 			return CreateRedisStore("db", &redis.Options{
 				Addr: s.Addr(),
-			})
+			}, lockOpts)
 		})
 	})
 	t.Run("without database prefix", func(t *testing.T) {
@@ -59,14 +62,14 @@ func TestRedis(t *testing.T) {
 			})
 			return CreateRedisStore("", &redis.Options{
 				Addr: s.Addr(),
-			})
+			}, lockOpts)
 		})
 	})
 }
 
 func TestCreateRedisStore(t *testing.T) {
 	t.Run("unable to connect", func(t *testing.T) {
-		actual, err := CreateRedisStore("", &redis.Options{Addr: "localhost:9889"})
+		actual, err := CreateRedisStore("", &redis.Options{Addr: "localhost:9889"}, nil)
 		assert.ErrorContains(t, err, "unable to connect to Redis database")
 		assert.Nil(t, actual)
 	})

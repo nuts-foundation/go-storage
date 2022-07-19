@@ -21,12 +21,14 @@ package kvtests
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 	"sync"
 	"testing"
+	"time"
 )
 
 var bytesKey = stoabs.BytesKey([]byte{1, 2, 3})
@@ -509,44 +511,105 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
+	supportsLockExpiry := func(store stoabs.KVStore) bool {
+		return fmt.Sprintf("%T", store) != "*bbolt.store"
+	}
+
 	t.Run("Transaction-Level Write Lock", func(t *testing.T) {
-		store := createStore(t, storeProvider)
+		t.Run("Multiple routines try to lock", func(t *testing.T) {
+			store := createStore(t, storeProvider)
 
-		const numTXs = 10
-		// We use a Mutex.TryLock() to detect if write transactions are executed concurrently.
-		// If we can't acquire the lock, it means there's another TX in flight.
-		assertionLock := &sync.Mutex{}
-		failures := make(chan error, numTXs)
-		wg := sync.WaitGroup{}
+			const numTXs = 10
+			// We use a Mutex.TryLock() to detect if write transactions are executed concurrently.
+			// If we can't acquire the lock, it means there's another TX in flight.
+			assertionLock := &sync.Mutex{}
+			failures := make(chan error, numTXs)
+			wg := sync.WaitGroup{}
 
-		for i := 0; i < numTXs; i++ {
-			wg.Add(1)
-			go func(mux *sync.Mutex, idx int) {
-				err := store.Write(func(tx stoabs.WriteTx) error {
-					logrus.Infof("starting %d", idx)
-					if !mux.TryLock() {
-						return errors.New("concurrent write transactions detected")
-					}
-					defer mux.Unlock()
-					writer, err := tx.GetShelfWriter(shelf)
+			for i := 0; i < numTXs; i++ {
+				wg.Add(1)
+				go func(mux *sync.Mutex, idx int) {
+					err := store.Write(func(tx stoabs.WriteTx) error {
+						logrus.Infof("starting %d", idx)
+						if !mux.TryLock() {
+							return errors.New("concurrent write transactions detected")
+						}
+						defer mux.Unlock()
+						writer, err := tx.GetShelfWriter(shelf)
+						if err != nil {
+							return err
+						}
+						logrus.Infof("end of %d", idx)
+						return writer.Put(bytesKey, bytesValue)
+					}, stoabs.WithWriteLock())
 					if err != nil {
-						return err
+						failures <- err
 					}
-					logrus.Infof("end of %d", idx)
-					return writer.Put(bytesKey, bytesValue)
+					wg.Done()
+				}(assertionLock, i)
+			}
+
+			// Wait for all TXs to finish
+			wg.Wait()
+
+			// Check for failures
+			assert.Len(t, failures, 0)
+		})
+		t.Run("Lock is expired", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			if !supportsLockExpiry(store) {
+				t.SkipNow()
+			}
+
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+			errs := make(chan error)
+
+			go func() {
+				errs <- store.Write(func(tx stoabs.WriteTx) error {
+					wg.Done()
+					time.Sleep(time.Second) // Longer than lock expiry (500ms)
+					return nil
 				}, stoabs.WithWriteLock())
-				if err != nil {
-					failures <- err
-				}
-				wg.Done()
-			}(assertionLock, i)
-		}
+			}()
 
-		// Wait for all TXs to finish
-		wg.Wait()
+			err := store.Write(func(tx stoabs.WriteTx) error {
+				return nil
+			}, stoabs.WithWriteLock())
+			if !assert.NoError(t, err) {
+				return
+			}
 
-		// Check for failures
-		assert.Len(t, failures, 0)
+			assert.ErrorIs(t, <-errs, stoabs.ErrLockExpired)
+		})
+		t.Run("Lock almost expires", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+			if !supportsLockExpiry(store) {
+				t.SkipNow()
+			}
+
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+			errs := make(chan error)
+
+			go func() {
+				errs <- store.Write(func(tx stoabs.WriteTx) error {
+					wg.Done()
+					time.Sleep(250 * time.Millisecond) // Bit shorter than lock expiry
+					return nil
+				}, stoabs.WithWriteLock())
+			}()
+
+			err := store.Write(func(tx stoabs.WriteTx) error {
+				return nil
+			}, stoabs.WithWriteLock())
+			if !assert.NoError(t, err) {
+				return
+			}
+			if !assert.NoError(t, <-errs) {
+				return
+			}
+		})
 	})
 }
 

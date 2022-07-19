@@ -110,6 +110,9 @@ type Writer interface {
 // ErrCommitFailed is returned when the commit of transaction fails.
 var ErrCommitFailed = errors.New("unable to commit transaction")
 
+// ErrLockExpired is returned when an operation fails because a database lock has expired.
+var ErrLockExpired = errors.New("database lock has expired")
+
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
 	// The context being passed can be used to specify a timeout for the close operation.
