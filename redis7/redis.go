@@ -340,6 +340,12 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 	return err
 }
 
+// visitKeys retrieves the values of the given keys and invokes the callback with each key and value.
+// It returns a bool indicating whether subsequent calls to visitKeys (with larger keys) should be attempted.
+// Behavior when encountering a non-existing key depends on stopAtNil:
+// - If stopAtNil is true, it stops processing keys and returns false (no futher calls to visitKeys should be made).
+// - If stopAtNil is false, it proceeds with the next key.
+// If an error occurs it also returns false.
 func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, keyType stoabs.Key, stopAtNil bool) (bool, error) {
 	values, err := s.reader.MGet(s.ctx, keys...).Result()
 	if err != nil {
@@ -355,7 +361,7 @@ func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, keyType stoabs
 		}
 		key, err := s.fromRedisKey(keys[i], keyType)
 		if err != nil {
-			return true, err
+			return false, err
 		}
 		err = callback(key, []byte(value.(string)))
 		if err != nil {
