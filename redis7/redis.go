@@ -41,6 +41,8 @@ const lockExpiryOffset = 5 * time.Second
 // pingAttempts specifies how many times a ping (Redis connection check) should be attempted.
 const pingAttempts = 5
 
+const pingTimeout = 3 * time.Second
+
 // pingAttemptBackoff specifies how long the client should wait after a failed ping attempt.
 var pingAttemptBackoff = 2 * time.Second
 
@@ -74,7 +76,9 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 	var err error
 	for i := 0; i < pingAttempts; i++ {
 		result.log.Debugf("Checking connection to Redis database (attempt=%d/%d, address=%s)...", i+1, pingAttempts, client.Options().Addr)
-		_, err = client.Ping(context.TODO()).Result()
+		ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+		_, err = client.Ping(ctx).Result()
+		cancel()
 		if err == nil {
 			break
 		}
@@ -171,7 +175,9 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 
 	// Make sure the transaction context has a deadline, to avoid hanging transactions and never-released locks
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		ctx, _ = context.WithTimeout(ctx, stoabs.DefaultTransactionTimeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, stoabs.DefaultTransactionTimeout)
+		defer cancel()
 	}
 
 	opts := stoabs.TxOptions(optsSlice)
@@ -196,7 +202,8 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 				return
 			}
 			s.log.Tracef("Releasing Redis distributed lock (name=%s)", lockName)
-			releaseLockCtx, _ := context.WithTimeout(ctx, 5*time.Second)
+			releaseLockCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
 			_, err := txMutex.UnlockContext(releaseLockCtx)
 			if err != nil {
 				log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
