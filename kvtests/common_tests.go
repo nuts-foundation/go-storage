@@ -648,7 +648,8 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 				t.SkipNow()
 			}
 
-			ctx, _ := context.WithTimeout(ctx, 500*time.Millisecond)
+			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
 
 			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
 				time.Sleep(time.Second)
