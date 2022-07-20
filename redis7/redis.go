@@ -38,6 +38,12 @@ const resultCount = 1000
 // lockExpiryOffset specifies how much time is added to the context deadline as expiry for TX locks
 const lockExpiryOffset = 5 * time.Second
 
+// pingAttempts specifies how many times a ping (Redis connection check) should be attempted.
+const pingAttempts = 5
+
+// pingAttemptBackoff specifies how long the client should wait after a failed ping attempt.
+var pingAttemptBackoff = 2 * time.Second
+
 var _ stoabs.KVStore = (*store)(nil)
 var _ stoabs.ReadTx = (*tx)(nil)
 var _ stoabs.WriteTx = (*tx)(nil)
@@ -65,8 +71,16 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 
 	client := redis.NewClient(clientOpts)
 
-	result.log.Debugf("Checking connection to Redis database (address=%s)...", client.Options().Addr)
-	_, err := client.Ping(context.TODO()).Result()
+	var err error
+	for i := 0; i < pingAttempts; i++ {
+		result.log.Debugf("Checking connection to Redis database (attempt=%d/%d, address=%s)...", i+1, pingAttempts, client.Options().Addr)
+		_, err = client.Ping(context.TODO()).Result()
+		if err == nil {
+			break
+		}
+		result.log.Warnf("Redis database connection check failed (attempt=%d/%d, address=%s): %s", i+1, pingAttempts, client.Options().Addr, err)
+		time.Sleep(pingAttemptBackoff)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
 	}
