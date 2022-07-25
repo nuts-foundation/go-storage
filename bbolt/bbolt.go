@@ -93,7 +93,7 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 func Wrap(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
 		db:    db,
-		mutex: lock.NewCASMutex(),
+		mutex: lock.NewChanMutex(),
 		log:   getLogger(cfg),
 	}
 }
@@ -107,7 +107,7 @@ func getLogger(cfg stoabs.Config) *logrus.Logger {
 
 type store struct {
 	db    *bbolt.DB
-	mutex lock.RWMutex
+	mutex *lock.ChanMutex
 	log   *logrus.Logger
 }
 
@@ -154,11 +154,7 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 
 	if writable {
 		if !b.mutex.TryLockWithContext(subCtx) {
-			return errors.New("timeout while waiting for lock")
-		}
-	} else {
-		if !b.mutex.RTryLockWithContext(subCtx) {
-			return errors.New("timeout while waiting for lock")
+			return errors.New("timeout while waiting for Lock")
 		}
 	}
 
@@ -174,7 +170,6 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 	// Writable TXs should be committed, non-writable TXs rolled back
 	if !writable {
 		rollbackTX(dbTX, b.log)
-		b.mutex.RUnlock()
 		return appError
 	}
 	// Observe result, commit/rollback
