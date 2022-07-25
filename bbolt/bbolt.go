@@ -21,6 +21,8 @@ package bbolt
 import (
 	"bytes"
 	"context"
+	"errors"
+	"github.com/viney-shih/go-lock"
 	"os"
 	"path"
 	"time"
@@ -90,8 +92,9 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 // Wrap creates a KVStore using an existing bbolt.DB
 func Wrap(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
-		db:  db,
-		log: getLogger(cfg),
+		db:    db,
+		mutex: lock.NewCASMutex(),
+		log:   getLogger(cfg),
 	}
 }
 
@@ -103,8 +106,9 @@ func getLogger(cfg stoabs.Config) *logrus.Logger {
 }
 
 type store struct {
-	db  *bbolt.DB
-	log *logrus.Logger
+	db    *bbolt.DB
+	mutex lock.RWMutex
+	log   *logrus.Logger
 }
 
 func (b *store) Close(ctx context.Context) error {
@@ -145,6 +149,19 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
 	opts := stoabs.TxOptions(optsSlice)
 
+	// custom mutex
+	subCtx, _ := context.WithTimeout(ctx, time.Second)
+
+	if writable {
+		if !b.mutex.TryLockWithContext(subCtx) {
+			return errors.New("timeout while waiting for lock")
+		}
+	} else {
+		if !b.mutex.RTryLockWithContext(subCtx) {
+			return errors.New("timeout while waiting for lock")
+		}
+	}
+
 	// Start transaction, retrieve/create shelf to operate on
 	dbTX, err := b.db.Begin(writable)
 	if err != nil {
@@ -157,6 +174,7 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 	// Writable TXs should be committed, non-writable TXs rolled back
 	if !writable {
 		rollbackTX(dbTX, b.log)
+		b.mutex.RUnlock()
 		return appError
 	}
 	// Observe result, commit/rollback
@@ -169,6 +187,7 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 		} else {
 			err = dbTX.Commit()
 		}
+		b.mutex.Unlock()
 		if err != nil {
 			opts.InvokeOnRollback()
 			return util.WrapError(stoabs.ErrCommitFailed, err)
@@ -179,6 +198,7 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 		b.log.WithError(appError).Warn("Rolling back transaction application due to error")
 		rollbackTX(dbTX, b.log)
 		opts.InvokeOnRollback()
+		b.mutex.Unlock()
 		return appError
 	}
 
