@@ -21,6 +21,7 @@ package bbolt
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"time"
@@ -42,7 +43,7 @@ var fileTimeout = defaultFileTimeout
 
 // CreateBBoltStore creates a new BBolt-backed KV store.
 func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{}
+	cfg := stoabs.DefaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -63,7 +64,6 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	}
 
 	// log warning if file opening hangs
-	cfg.Log = getLogger(cfg)
 	done := make(chan bool, 1)
 	ticker := time.NewTicker(fileTimeout)
 	go func() {
@@ -90,21 +90,18 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 // Wrap creates a KVStore using an existing bbolt.DB
 func Wrap(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
-		db:  db,
-		log: getLogger(cfg),
+		db:   db,
+		cfg:  cfg,
+		log:  cfg.Log,
+		lock: &util.ContextRWLocker{},
 	}
-}
-
-func getLogger(cfg stoabs.Config) *logrus.Logger {
-	if cfg.Log != nil {
-		return cfg.Log
-	}
-	return stoabs.DefaultLogger()
 }
 
 type store struct {
-	db  *bbolt.DB
-	log *logrus.Logger
+	db   *bbolt.DB
+	log  *logrus.Logger
+	lock *util.ContextRWLocker
+	cfg  stoabs.Config
 }
 
 func (b *store) Close(ctx context.Context) error {
@@ -142,12 +139,28 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 	}, false, nil)
 }
 
-func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable bool, optsSlice []stoabs.TxOption) error {
-	opts := stoabs.TxOptions(optsSlice)
+func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable bool, opts []stoabs.TxOption) error {
+	unlock := func() {}
+	lockCtx, lockCtxCancel := context.WithTimeout(ctx, b.cfg.LockAcquireTimeout)
+	defer lockCtxCancel()
+	if writable {
+		err := b.lock.LockContext(lockCtx)
+		if err != nil {
+			return fmt.Errorf("unable to obtain BBolt write lock: %w", err)
+		}
+		unlock = b.lock.Unlock
+	} else {
+		err := b.lock.RLockContext(lockCtx)
+		if err != nil {
+			return fmt.Errorf("unable to obtain BBolt read lock: %w", err)
+		}
+		unlock = b.lock.RUnlock
+	}
 
 	// Start transaction, retrieve/create shelf to operate on
 	dbTX, err := b.db.Begin(writable)
 	if err != nil {
+		unlock()
 		return err
 	}
 
@@ -157,31 +170,34 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 	// Writable TXs should be committed, non-writable TXs rolled back
 	if !writable {
 		rollbackTX(dbTX, b.log)
+		unlock()
 		return appError
 	}
 	// Observe result, commit/rollback
-	if appError == nil {
-		b.log.Trace("Committing BBolt transaction")
-		// Check context cancellation, if not cancelled/expired; commit.
-		if ctx.Err() != nil {
-			err = ctx.Err()
-			rollbackTX(dbTX, b.log)
-		} else {
-			err = dbTX.Commit()
-		}
-		if err != nil {
-			opts.InvokeOnRollback()
-			return util.WrapError(stoabs.ErrCommitFailed, err)
-		}
-
-		opts.InvokeAfterCommit()
-	} else {
+	if appError != nil {
 		b.log.WithError(appError).Warn("Rolling back transaction application due to error")
 		rollbackTX(dbTX, b.log)
-		opts.InvokeOnRollback()
+		unlock()
+		stoabs.OnRollbackOption{}.Invoke(opts)
 		return appError
 	}
 
+	b.log.Trace("Committing BBolt transaction")
+	// Check context cancellation, if not cancelled/expired; commit.
+	if ctx.Err() != nil {
+		err = ctx.Err()
+		rollbackTX(dbTX, b.log)
+	} else {
+		err = dbTX.Commit()
+	}
+	if err != nil {
+		unlock()
+		stoabs.OnRollbackOption{}.Invoke(opts)
+		return util.WrapError(stoabs.ErrCommitFailed, err)
+	}
+
+	unlock()
+	stoabs.AfterCommitOption{}.Invoke(opts)
 	return nil
 }
 

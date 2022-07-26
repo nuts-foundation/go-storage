@@ -21,7 +21,6 @@ package kvtests
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -598,7 +597,8 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 	ctx := context.Background()
 	supportsLockExpiry := func(store stoabs.KVStore) bool {
-		return fmt.Sprintf("%T", store) != "*bbolt.store"
+		return true
+		//return fmt.Sprintf("%T", store) != "*bbolt.store"
 	}
 
 	t.Run("Transaction-Level Write Lock", func(t *testing.T) {

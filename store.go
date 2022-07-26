@@ -31,6 +31,8 @@ var ErrStoreIsClosed = errors.New("database not open")
 
 const DefaultTransactionTimeout = 30 * time.Second
 
+const defaultLockAcquisitionTimeout = 3 * time.Second
+
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
 type KVStore interface {
@@ -57,8 +59,22 @@ type KVStore interface {
 type Option func(config *Config)
 
 type Config struct {
-	Log    *logrus.Logger
-	NoSync bool
+	Log                *logrus.Logger
+	NoSync             bool
+	LockAcquireTimeout time.Duration
+}
+
+func DefaultConfig() Config {
+	return Config{
+		Log:                logrus.StandardLogger(),
+		LockAcquireTimeout: defaultLockAcquisitionTimeout,
+	}
+}
+
+func WithLockAcquireTimeout(value time.Duration) Option {
+	return func(config *Config) {
+		config.LockAcquireTimeout = value
+	}
 }
 
 func WithNoSync() Option {
@@ -71,11 +87,6 @@ func WithLogger(log *logrus.Logger) Option {
 	return func(config *Config) {
 		config.Log = log
 	}
-}
-
-// DefaultLogger is the logger that will be used when none is provided to a store
-func DefaultLogger() *logrus.Logger {
-	return logrus.StandardLogger()
 }
 
 // ShelfStats contains statistics about a shelf.
@@ -126,31 +137,13 @@ type Store interface {
 // TxOption holds options for store transactions.
 type TxOption interface{}
 
-type TxOptions []TxOption
-
-type writeLockOption struct {
+type WriteLockOption struct {
 }
 
-func (opts TxOptions) InvokeOnRollback() {
+// Enabled returns whether the WithWriteLock option was specified.
+func (w WriteLockOption) Enabled(opts []TxOption) bool {
 	for _, opt := range opts {
-		if ar, ok := opt.(*OnRollbackOpt); ok {
-			ar.Func()
-		}
-	}
-}
-
-func (opts TxOptions) InvokeAfterCommit() {
-	for _, opt := range opts {
-		if ar, ok := opt.(*AfterCommitOpt); ok {
-			ar.Func()
-		}
-	}
-}
-
-// RequestsWriteLock returns whether the WithWriteLock option was specified.
-func (opts TxOptions) RequestsWriteLock() bool {
-	for _, opt := range opts {
-		if _, ok := opt.(writeLockOption); ok {
+		if _, ok := opt.(WriteLockOption); ok {
 			return true
 		}
 	}
@@ -160,27 +153,43 @@ func (opts TxOptions) RequestsWriteLock() bool {
 // WithWriteLock is a transaction option that acquires a write lock for the entire store, making sure there are no concurrent writeable transactions.
 // The lock is released when the transaction finishes in any way (commit/rollback).
 func WithWriteLock() TxOption {
-	return writeLockOption{}
+	return WriteLockOption{}
 }
 
-type AfterCommitOpt struct {
-	Func func()
+type AfterCommitOption struct {
+	fn func()
+}
+
+func (o AfterCommitOption) Invoke(opts []TxOption) {
+	for _, opt := range opts {
+		if ar, ok := opt.(*AfterCommitOption); ok {
+			ar.fn()
+		}
+	}
 }
 
 // AfterCommit specifies a function that will be called after a transaction is successfully committed.
 // There can be multiple AfterCommit functions, which will be called in order.
 func AfterCommit(fn func()) TxOption {
-	return &AfterCommitOpt{Func: fn}
+	return &AfterCommitOption{fn: fn}
 }
 
-type OnRollbackOpt struct {
-	Func func()
+type OnRollbackOption struct {
+	fn func()
+}
+
+func (o OnRollbackOption) Invoke(opts []TxOption) {
+	for _, opt := range opts {
+		if ar, ok := opt.(*OnRollbackOption); ok {
+			ar.fn()
+		}
+	}
 }
 
 // OnRollback specifies a function that will be called after a transaction is successfully rolled back.
 // There can be multiple OnRollback functions, which will be called in order.
 func OnRollback(fn func()) TxOption {
-	return &OnRollbackOpt{Func: fn}
+	return &OnRollbackOption{fn: fn}
 }
 
 // WriteTx is used to write to a KVStore.
