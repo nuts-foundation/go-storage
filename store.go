@@ -58,12 +58,14 @@ type KVStore interface {
 
 type Option func(config *Config)
 
+// Config specifies the configuration for a KVStore.
 type Config struct {
 	Log                *logrus.Logger
 	NoSync             bool
 	LockAcquireTimeout time.Duration
 }
 
+// DefaultConfig returns the default configuration.
 func DefaultConfig() Config {
 	return Config{
 		Log:                logrus.StandardLogger(),
@@ -71,18 +73,22 @@ func DefaultConfig() Config {
 	}
 }
 
+// WithLockAcquireTimeout overrides the default timeout for acquiring a lock.
 func WithLockAcquireTimeout(value time.Duration) Option {
 	return func(config *Config) {
 		config.LockAcquireTimeout = value
 	}
 }
 
+// WithNoSync specifies that the database should not flush its data to disk.
+// Support depends on the underlying database.
 func WithNoSync() Option {
 	return func(config *Config) {
 		config.NoSync = true
 	}
 }
 
+// WithLogger overrides the default logger.
 func WithLogger(log *logrus.Logger) Option {
 	return func(config *Config) {
 		config.Log = log
@@ -156,10 +162,12 @@ func WithWriteLock() TxOption {
 	return WriteLockOption{}
 }
 
+// AfterCommitOption is an option that invokes a function after a transaction is committed.
 type AfterCommitOption struct {
 	fn func()
 }
 
+// Invoke calls all functions registered with the AfterCommitOption.
 func (o AfterCommitOption) Invoke(opts []TxOption) {
 	for _, opt := range opts {
 		if ar, ok := opt.(*AfterCommitOption); ok {
@@ -174,10 +182,12 @@ func AfterCommit(fn func()) TxOption {
 	return &AfterCommitOption{fn: fn}
 }
 
+// OnRollbackOption is an option that invokes a function after a transaction is rolled back.
 type OnRollbackOption struct {
 	fn func()
 }
 
+// Invoke calls all functions registered with the OnRollbackOption.
 func (o OnRollbackOption) Invoke(opts []TxOption) {
 	for _, opt := range opts {
 		if ar, ok := opt.(*OnRollbackOption); ok {

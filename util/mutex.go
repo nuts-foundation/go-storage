@@ -72,30 +72,37 @@ func lockWithCancel(ctx context.Context, fnLock func(), fnUnlock func()) error {
 	}
 }
 
+// Lock simply calls the underlying lock.
 func (c *ContextRWLocker) Lock() {
 	c.mux.Lock()
 }
 
+// RLock simply calls the underlying lock.
 func (c *ContextRWLocker) RLock() {
 	c.mux.RLock()
 }
 
+// TryLock simply calls the underlying lock.
 func (c *ContextRWLocker) TryLock() bool {
 	return c.mux.TryLock()
 }
 
+// RLocker simply calls the underlying lock.
 func (c *ContextRWLocker) RLocker() sync.Locker {
 	return c.mux.RLocker()
 }
 
+// TryRLock simply calls the underlying lock.
 func (c *ContextRWLocker) TryRLock() bool {
 	return c.mux.TryRLock()
 }
 
+// Unlock simply calls the underlying lock.
 func (c *ContextRWLocker) Unlock() {
 	c.mux.Unlock()
 }
 
+// RUnlock simply calls the underlying lock.
 func (c *ContextRWLocker) RUnlock() {
 	c.mux.RUnlock()
 }
