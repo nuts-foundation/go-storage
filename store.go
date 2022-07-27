@@ -143,6 +143,7 @@ type Store interface {
 // TxOption holds options for store transactions.
 type TxOption interface{}
 
+// WriteLockOption see WithWriteLock
 type WriteLockOption struct {
 }
 
@@ -162,7 +163,7 @@ func WithWriteLock() TxOption {
 	return WriteLockOption{}
 }
 
-// AfterCommitOption is an option that invokes a function after a transaction is committed.
+// AfterCommitOption see AfterCommit
 type AfterCommitOption struct {
 	fn func()
 }
@@ -182,7 +183,7 @@ func AfterCommit(fn func()) TxOption {
 	return &AfterCommitOption{fn: fn}
 }
 
-// OnRollbackOption is an option that invokes a function after a transaction is rolled back.
+// OnRollbackOption see OnRollback
 type OnRollbackOption struct {
 	fn func()
 }
