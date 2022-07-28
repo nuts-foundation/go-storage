@@ -63,7 +63,6 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 		return nil, err
 	}
 
-	// log warning if file opening hangs
 	done := make(chan bool, 1)
 	ticker := time.NewTicker(fileTimeout)
 	go func() {
