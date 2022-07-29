@@ -21,7 +21,6 @@ package kvtests
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -597,9 +596,6 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 
 func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 	ctx := context.Background()
-	supportsLockExpiry := func(store stoabs.KVStore) bool {
-		return fmt.Sprintf("%T", store) != "*bbolt.store"
-	}
 
 	t.Run("Transaction-Level Write Lock", func(t *testing.T) {
 		t.Run("Multiple routines try to lock", func(t *testing.T) {
@@ -644,9 +640,6 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 
 		t.Run("context expired", func(t *testing.T) {
 			store := createStore(t, storeProvider)
-			if !supportsLockExpiry(store) {
-				t.SkipNow()
-			}
 
 			ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 			defer cancel()

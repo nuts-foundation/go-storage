@@ -55,7 +55,7 @@ var _ stoabs.Writer = (*shelf)(nil)
 // CreateRedisStore connects to a Redis database server using the given options.
 // The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
 func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{}
+	cfg := stoabs.DefaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -67,9 +67,6 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 	}
 
 	result.log = cfg.Log
-	if result.log == nil {
-		result.log = logrus.StandardLogger()
-	}
 
 	client := redis.NewClient(clientOpts)
 
@@ -168,7 +165,7 @@ func (s *store) getShelf(ctx context.Context, shelfName string, writer redis.Cmd
 	}
 }
 
-func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.Pipeliner) error, optsSlice []stoabs.TxOption) error {
+func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.Pipeliner) error, opts []stoabs.TxOption) error {
 	if err := s.checkOpen(); err != nil {
 		return err
 	}
@@ -180,23 +177,26 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		defer cancel()
 	}
 
-	opts := stoabs.TxOptions(optsSlice)
+	unlock := func() {}
 
 	// Obtain transaction-level write lock, if requested
 	var txMutex *redsync.Mutex
-	if opts.RequestsWriteLock() {
+	if (stoabs.WriteLockOption{}).Enabled(opts) {
 		lockName := "lock_" + s.prefix
 		s.log.Tracef("Acquiring Redis distributed lock (name=%s)", lockName)
 		// Lock expires 5 seconds after transaction context expires
 		txDeadline, _ := ctx.Deadline()
 		lockExpiry := txDeadline.Add(lockExpiryOffset).Sub(time.Now())
+		// Sub-context for lock acquisition
+		lockCtx, lockCtxCancel := context.WithTimeout(ctx, s.cfg.LockAcquireTimeout)
+		defer lockCtxCancel()
 		// Acquire lock
 		txMutex = s.rs.NewMutex(lockName, redsync.WithExpiry(lockExpiry))
-		err := txMutex.LockContext(ctx)
+		err := txMutex.LockContext(lockCtx)
 		if err != nil {
 			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
 		}
-		defer func(txMutex *redsync.Mutex, log *logrus.Logger) {
+		unlock = func() {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				s.log.Warnf("Not releasing Redis distributed lock, because the transaction context has expired and the server may still writing the data. Lock will expire automatically (name=%s,expiresIn=%s)", lockName, txMutex.Until().Sub(time.Now()))
 				return
@@ -206,9 +206,9 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 			defer cancel()
 			_, err := txMutex.UnlockContext(releaseLockCtx)
 			if err != nil {
-				log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
+				s.log.Errorf("Unable to release Redis transaction-level write lock: %s", err)
 			}
-		}(txMutex, s.log)
+		}
 	}
 
 	// Start transaction, retrieve/create shelf to operate on
@@ -218,33 +218,42 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 	// Perform TX action(s)
 	appError := fn(ctx, pl)
 
-	// Observe result, commit/rollback
-	if appError == nil {
-		s.log.Trace("Committing Redis transaction (TxPipeline)")
-		if ctx.Err() != nil {
-			// TX lock expired
-			pl.Discard()
-			s.log.Error("Unable to commit Redis transaction, transaction timed out.")
-			opts.InvokeOnRollback()
-			return ctx.Err()
-		}
-		cmdErrs, err := pl.Exec(ctx)
-
-		if err != nil {
-			for _, cmdErr := range cmdErrs {
-				s.log.WithError(cmdErr.Err()).Errorf("Redis pipeline command failed: %s", cmdErr.String())
-			}
-			opts.InvokeOnRollback()
-			return stoabs.ErrCommitFailed
-		}
-		opts.InvokeAfterCommit()
-	} else {
+	// Observe result, if application returned an error rollback TX
+	if appError != nil {
 		s.log.WithError(appError).Warn("Rolling back transaction due to application error")
 		pl.Discard()
-		opts.InvokeOnRollback()
+		unlock()
+		stoabs.OnRollbackOption{}.Invoke(opts)
 		return appError
 	}
 
+	s.log.Trace("Committing Redis transaction (TxPipeline)")
+
+	// Before committing TX, check if TX didn't expire
+	if ctx.Err() != nil {
+		// TX lock expired
+		pl.Discard()
+		s.log.Error("Unable to commit Redis transaction, transaction timed out.")
+		unlock()
+		stoabs.OnRollbackOption{}.Invoke(opts)
+		return ctx.Err()
+	}
+
+	// Everything looks OK, commit
+	cmdErrs, err := pl.Exec(ctx)
+	if err != nil {
+		// Commit failed
+		for _, cmdErr := range cmdErrs {
+			s.log.WithError(cmdErr.Err()).Errorf("Redis pipeline command failed: %s", cmdErr.String())
+		}
+		unlock()
+		stoabs.OnRollbackOption{}.Invoke(opts)
+		return stoabs.ErrCommitFailed
+	}
+
+	// Success
+	unlock()
+	stoabs.AfterCommitOption{}.Invoke(opts)
 	return nil
 }
 

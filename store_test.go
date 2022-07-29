@@ -21,9 +21,22 @@ package stoabs
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
-func TestTxOptions_RequestsWriteLock(t *testing.T) {
-	assert.True(t, TxOptions([]TxOption{WithWriteLock()}).RequestsWriteLock())
-	assert.False(t, TxOptions{}.RequestsWriteLock())
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	assert.NotEmpty(t, cfg.LockAcquireTimeout)
+	assert.NotNil(t, cfg.Log)
+}
+
+func TestAcquireLockTimeout(t *testing.T) {
+	cfg := DefaultConfig()
+	WithLockAcquireTimeout(time.Hour)(&cfg)
+	assert.Equal(t, time.Hour, cfg.LockAcquireTimeout)
+}
+
+func TestWriteLockOption(t *testing.T) {
+	assert.True(t, WriteLockOption{}.Enabled([]TxOption{WithWriteLock()}))
+	assert.False(t, WriteLockOption{}.Enabled([]TxOption{}))
 }
