@@ -2,11 +2,11 @@ module github.com/nuts-foundation/go-stoabs
 
 go 1.18
 
-replace github.com/go-redsync/redsync/v4 => github.com/reinkrul/redsync/v4 v4.5.2-0.20220708083509-60b83c036585
+replace github.com/go-redsync/redsync/v4 => github.com/reinkrul/redsync/v4 v4.5.2-0.20220801105510-6be544bc80cd
 
 require (
 	github.com/alicebob/miniredis/v2 v2.21.0
-	github.com/go-redis/redis/v9 v9.0.0-beta.1
+	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/go-redsync/redsync/v4 v4.5.1
 	github.com/golang/mock v1.6.0
 	github.com/sirupsen/logrus v1.8.1
@@ -24,5 +24,5 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9 // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
