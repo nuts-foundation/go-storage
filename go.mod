@@ -10,7 +10,7 @@ require (
 	github.com/go-redsync/redsync/v4 v4.5.1
 	github.com/golang/mock v1.6.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.0
 	go.etcd.io/bbolt v1.3.6
 )
 
