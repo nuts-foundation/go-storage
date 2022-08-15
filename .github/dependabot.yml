@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Go
+  - package-ecosystem: "gomod"
+    # checks /go.mod
+    directory: "/"
+    schedule:
+      interval: "daily"
