@@ -55,6 +55,13 @@ var _ stoabs.Writer = (*shelf)(nil)
 // CreateRedisStore connects to a Redis database server using the given options.
 // The given prefix is added to each key, separated with a semicolon (:). When prefix is an empty string, it is ignored.
 func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.Option) (stoabs.KVStore, error) {
+	client := redis.NewClient(clientOpts)
+	return Wrap(prefix, client, opts...)
+}
+
+// Wrap can be used to use an already created Redis client as KVStore.
+// This allows the application to use features supported by the Redis client library, but not by go-stoabs (e.g. Sentinel).
+func Wrap(prefix string, client *redis.Client, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.DefaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
@@ -67,8 +74,6 @@ func CreateRedisStore(prefix string, clientOpts *redis.Options, opts ...stoabs.O
 	}
 
 	result.log = cfg.Log
-
-	client := redis.NewClient(clientOpts)
 
 	var err error
 	for i := 0; i < pingAttempts; i++ {
