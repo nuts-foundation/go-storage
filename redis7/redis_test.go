@@ -90,7 +90,7 @@ func TestRedis(t *testing.T) {
 
 func TestCreateRedisStore(t *testing.T) {
 	t.Run("unable to connect", func(t *testing.T) {
-		pingAttemptBackoff = 100 * time.Millisecond // speed up test
+		PingAttemptBackoff = 100 * time.Millisecond // speed up test
 		startTime := time.Now()
 
 		actual, err := CreateRedisStore("", &redis.Options{Addr: "localhost:9889"})
@@ -98,6 +98,6 @@ func TestCreateRedisStore(t *testing.T) {
 		assert.Nil(t, actual)
 
 		// Assert time took at least pingAttempts * pingAttemptBackoff
-		assert.GreaterOrEqual(t, time.Now().Sub(startTime), pingAttempts*pingAttemptBackoff)
+		assert.GreaterOrEqual(t, time.Now().Sub(startTime), pingAttempts*PingAttemptBackoff)
 	})
 }

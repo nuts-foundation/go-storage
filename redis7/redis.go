@@ -43,8 +43,8 @@ const pingAttempts = 5
 
 const pingTimeout = 3 * time.Second
 
-// pingAttemptBackoff specifies how long the client should wait after a failed ping attempt.
-var pingAttemptBackoff = 2 * time.Second
+// PingAttemptBackoff specifies how long the client should wait after a failed ping attempt.
+var PingAttemptBackoff = 2 * time.Second
 
 var _ stoabs.KVStore = (*store)(nil)
 var _ stoabs.ReadTx = (*tx)(nil)
@@ -85,7 +85,7 @@ func Wrap(prefix string, client *redis.Client, opts ...stoabs.Option) (stoabs.KV
 			break
 		}
 		result.log.Warnf("Redis database connection check failed (attempt=%d/%d, address=%s): %s", i+1, pingAttempts, client.Options().Addr, err)
-		time.Sleep(pingAttemptBackoff)
+		time.Sleep(PingAttemptBackoff)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
