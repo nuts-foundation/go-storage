@@ -162,5 +162,5 @@ func (b BytesKey) Next() Key {
 
 func (b BytesKey) Equals(other Key) bool {
 	o, ok := other.(BytesKey)
-	return ok && bytes.Compare(b, o) == 0
+	return ok && bytes.Equal(b, o)
 }

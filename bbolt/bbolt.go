@@ -139,7 +139,7 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 }
 
 func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable bool, opts []stoabs.TxOption) error {
-	unlock := func() {}
+	var unlock func()
 	lockCtx, lockCtxCancel := context.WithTimeout(ctx, b.cfg.LockAcquireTimeout)
 	defer lockCtxCancel()
 	if writable {
