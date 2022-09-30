@@ -98,6 +98,6 @@ func TestCreateRedisStore(t *testing.T) {
 		assert.Nil(t, actual)
 
 		// Assert time took at least pingAttempts * pingAttemptBackoff
-		assert.GreaterOrEqual(t, time.Now().Sub(startTime), pingAttempts*PingAttemptBackoff)
+		assert.GreaterOrEqual(t, time.Since(startTime), pingAttempts*PingAttemptBackoff)
 	})
 }

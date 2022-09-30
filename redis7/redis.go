@@ -191,7 +191,7 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		s.log.Tracef("Acquiring Redis distributed lock (name=%s)", lockName)
 		// Lock expires 5 seconds after transaction context expires
 		txDeadline, _ := ctx.Deadline()
-		lockExpiry := txDeadline.Add(lockExpiryOffset).Sub(time.Now())
+		lockExpiry := time.Until(txDeadline.Add(lockExpiryOffset))
 		// Sub-context for lock acquisition
 		lockCtx, lockCtxCancel := context.WithTimeout(ctx, s.cfg.LockAcquireTimeout)
 		defer lockCtxCancel()
@@ -203,7 +203,7 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		}
 		unlock = func() {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				s.log.Warnf("Not releasing Redis distributed lock, because the transaction context has expired and the server may still writing the data. Lock will expire automatically (name=%s,expiresIn=%s)", lockName, txMutex.Until().Sub(time.Now()))
+				s.log.Warnf("Not releasing Redis distributed lock, because the transaction context has expired and the server may still writing the data. Lock will expire automatically (name=%s,expiresIn=%s)", lockName, time.Until(txMutex.Until()))
 				return
 			}
 			s.log.Tracef("Releasing Redis distributed lock (name=%s)", lockName)
