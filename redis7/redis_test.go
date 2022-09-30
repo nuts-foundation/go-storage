@@ -20,6 +20,7 @@ package redis7
 
 import (
 	"context"
+	"errors"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v9"
 	"github.com/nuts-foundation/go-stoabs"
@@ -99,5 +100,70 @@ func TestCreateRedisStore(t *testing.T) {
 
 		// Assert time took at least pingAttempts * pingAttemptBackoff
 		assert.GreaterOrEqual(t, time.Now().Sub(startTime), pingAttempts*PingAttemptBackoff)
+	})
+}
+
+func NewTestStore(t *testing.T) (*miniredis.Miniredis, store) {
+	mr := miniredis.RunT(t)
+	t.Cleanup(func() {
+		mr.Close()
+	})
+	s, err := CreateRedisStore("db", &redis.Options{
+		Addr: mr.Addr(),
+	})
+	if !assert.NoError(t, err) {
+		t.Fatal(err)
+	}
+	return mr, *s.(*store)
+}
+
+func TestStore_ErrDatabase(t *testing.T) {
+	throwDBError := func(t *testing.T, fn func(writer stoabs.Writer) error) {
+		t.Run("contains ErrDatabase and mock error", func(t *testing.T) {
+			mock, store := NewTestStore(t)
+			mock.SetError("DB error")
+
+			err := store.WriteShelf(context.Background(), "shelf", fn)
+
+			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
+			assert.Contains(t, err.Error(), "DB error")
+		})
+	}
+
+	t.Run("Get()", func(t *testing.T) {
+		throwDBError(t, func(writer stoabs.Writer) error {
+			_, err := writer.Get(stoabs.NewHashKey([32]byte{}))
+			return err
+		})
+	})
+	t.Run("Put()", func(t *testing.T) {
+		throwDBError(t, func(writer stoabs.Writer) error {
+			return writer.Put(stoabs.NewHashKey([32]byte{}), []byte{1})
+		})
+	})
+	t.Run("Delete()", func(t *testing.T) {
+		throwDBError(t, func(writer stoabs.Writer) error {
+			return writer.Delete(stoabs.NewHashKey([32]byte{}))
+		})
+	})
+	t.Run("Close()", func(t *testing.T) {
+		_, store := NewTestStore(t)
+		// mock.SetError doesn't work for Close
+		_ = store.client.Close()
+
+		err := store.Close(context.Background())
+
+		assert.ErrorIs(t, err, stoabs.ErrDatabase{})
+	})
+	t.Run("user err", func(t *testing.T) {
+		_, store := NewTestStore(t)
+		expected := errors.New("user error")
+
+		actual := store.ReadShelf(context.Background(), "shelf", func(reader stoabs.Reader) error {
+			return expected
+		})
+
+		assert.Equal(t, actual, expected)
+		assert.NotErrorIs(t, actual, stoabs.ErrDatabase{})
 	})
 }

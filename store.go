@@ -21,13 +21,42 @@ package stoabs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
-// ErrStoreIsClosed is returned when an operation is executed on a closed store.
-var ErrStoreIsClosed = errors.New("database not open")
+// DatabaseError wraps the given error in ErrDatabase if it isn't already in the error chain.
+func DatabaseError(err error) error {
+	if errors.Is(err, ErrDatabase{}) {
+		// Only wrap once to keep ErrDatabase closest to the actual database error
+		return err
+	}
+	return &ErrDatabase{err}
+}
+
+// ErrDatabase signals that the wrapped error is related to database access, or due to context cancellation/timeout.
+// The action that resulted in this error may succeed when retried.
+type ErrDatabase struct {
+	error
+}
+
+func (e ErrDatabase) Error() string {
+	// Use Sprintf to avoid dereferencing of wrapped nil error
+	return fmt.Sprintf("Database Error: %s", e.error)
+}
+
+func (e ErrDatabase) Is(other error) bool {
+	_, ok := other.(ErrDatabase)
+	return ok
+}
+func (e ErrDatabase) Unwrap() error {
+	return e.error
+}
+
+// ErrStoreIsClosed is returned when an operation is executed on a closed store. Is also a ErrDatabase.
+var ErrStoreIsClosed = DatabaseError(errors.New("database not open"))
 
 const DefaultTransactionTimeout = 30 * time.Second
 
@@ -35,6 +64,7 @@ const defaultLockAcquisitionTimeout = 3 * time.Second
 
 // KVStore defines the interface for a key-value store.
 // Writing to it is done in callbacks passed to the Write-functions. If the callback returns an error, the transaction is rolled back.
+// Methods return a ErrDatabase when the context has been cancelled or timed-out.
 type KVStore interface {
 	Store
 	// Write starts a writable transaction and passes it to the given function.
@@ -109,6 +139,7 @@ type CallerFn func(key Key, value []byte) error
 // Reader is used to read from a shelf.
 type Reader interface {
 	// Get returns the value for the given key. If it does not exist it returns nil.
+	// Returns a ErrDatabase if unsuccessful.
 	Get(key Key) ([]byte, error)
 	// Iterate walks over all key/value pairs for this shelf. Ordering is not guaranteed.
 	// The caller will have to supply the correct key type, such that the keys can be parsed.
@@ -126,17 +157,20 @@ type Writer interface {
 	Reader
 
 	// Put stores the given key and value in the shelf.
+	// Returns a ErrDatabase if unsuccessful.
 	Put(key Key, value []byte) error
 	// Delete removes the given key from the shelf.
+	// Returns a ErrDatabase if unsuccessful.
 	Delete(key Key) error
 }
 
-// ErrCommitFailed is returned when the commit of transaction fails.
-var ErrCommitFailed = errors.New("unable to commit transaction")
+// ErrCommitFailed is returned when the commit of transaction fails. Is also a ErrDatabase.
+var ErrCommitFailed = DatabaseError(errors.New("unable to commit transaction"))
 
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
 	// The context being passed can be used to specify a timeout for the close operation.
+	// Returns a ErrDatabase if unsuccessful,
 	Close(ctx context.Context) error
 }
 
@@ -207,6 +241,7 @@ func OnRollback(fn func()) TxOption {
 type WriteTx interface {
 	ReadTx
 	// GetShelfWriter returns the specified shelf for writing. If it doesn't exist, it will be created.
+	// Returns a ErrDatabase if unsuccessful.
 	GetShelfWriter(shelfName string) (Writer, error)
 }
 
