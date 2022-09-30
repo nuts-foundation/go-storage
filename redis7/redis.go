@@ -88,7 +88,7 @@ func Wrap(prefix string, client *redis.Client, opts ...stoabs.Option) (stoabs.KV
 		time.Sleep(PingAttemptBackoff)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to Redis database: %w", err)
+		return nil, fmt.Errorf("unable to connect to Redis database: %w", stoabs.DatabaseError(err))
 	}
 	result.log.Debug("Connection check successful")
 
@@ -122,7 +122,10 @@ func (s *store) Close(ctx context.Context) error {
 		s.log.Error("Closing of Redis client timed out")
 	})
 	s.client = nil
-	return err
+	if err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (s *store) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
@@ -199,7 +202,7 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		txMutex = s.rs.NewMutex(lockName, redsync.WithExpiry(lockExpiry))
 		err := txMutex.LockContext(lockCtx)
 		if err != nil {
-			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", err)
+			return fmt.Errorf("unable to obtain Redis transaction-level write lock: %w", stoabs.DatabaseError(err))
 		}
 		unlock = func() {
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -241,7 +244,7 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		s.log.Error("Unable to commit Redis transaction, transaction timed out.")
 		unlock()
 		stoabs.OnRollbackOption{}.Invoke(opts)
-		return ctx.Err()
+		return stoabs.DatabaseError(ctx.Err())
 	}
 
 	// Everything looks OK, commit
@@ -253,7 +256,7 @@ func (s *store) doTX(ctx context.Context, fn func(ctx context.Context, tx redis.
 		}
 		unlock()
 		stoabs.OnRollbackOption{}.Invoke(opts)
-		return stoabs.ErrCommitFailed
+		return util.WrapError(stoabs.ErrCommitFailed, err)
 	}
 
 	// Success
@@ -310,11 +313,17 @@ func (s shelf) Put(key stoabs.Key, value []byte) error {
 	if err := s.store.checkOpen(); err != nil {
 		return err
 	}
-	return s.writer.Set(s.ctx, s.toRedisKey(key), value, 0).Err()
+	if err := s.writer.Set(s.ctx, s.toRedisKey(key), value, 0).Err(); err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (s shelf) Delete(key stoabs.Key) error {
-	return s.writer.Del(s.ctx, s.toRedisKey(key)).Err()
+	if err := s.writer.Del(s.ctx, s.toRedisKey(key)).Err(); err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
@@ -322,7 +331,7 @@ func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 	if err == redis.Nil {
 		return nil, nil
 	} else if err != nil {
-		return nil, err
+		return nil, stoabs.DatabaseError(err)
 	}
 	return []byte(result), nil
 }
@@ -335,7 +344,7 @@ func (s shelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
 		scanCmd := s.reader.Scan(s.ctx, cursor, s.toRedisKey(stoabs.BytesKey(""))+"*", int64(resultCount))
 		keys, cursor, err = scanCmd.Result()
 		if err != nil {
-			return err
+			return stoabs.DatabaseError(err)
 		}
 		if len(keys) > 0 {
 			_, err := s.visitKeys(keys, callback, keyType, false)
@@ -356,8 +365,9 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 	// Iterate from..to (start inclusive, end exclusive)
 	var numKeys = 0
 	for curr := from; !curr.Equals(to); curr = curr.Next() {
+		// Potentially long-running operation, check context for cancellation
 		if s.ctx.Err() != nil {
-			return s.ctx.Err()
+			return stoabs.DatabaseError(s.ctx.Err())
 		}
 		if curr.Equals(to) {
 			// Reached end (exclusive)
@@ -383,13 +393,13 @@ func (s shelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, s
 // visitKeys retrieves the values of the given keys and invokes the callback with each key and value.
 // It returns a bool indicating whether subsequent calls to visitKeys (with larger keys) should be attempted.
 // Behavior when encountering a non-existing key depends on stopAtNil:
-// - If stopAtNil is true, it stops processing keys and returns false (no futher calls to visitKeys should be made).
+// - If stopAtNil is true, it stops processing keys and returns false (no further calls to visitKeys should be made).
 // - If stopAtNil is false, it proceeds with the next key.
 // If an error occurs it also returns false.
 func (s shelf) visitKeys(keys []string, callback stoabs.CallerFn, keyType stoabs.Key, stopAtNil bool) (bool, error) {
 	values, err := s.reader.MGet(s.ctx, keys...).Result()
 	if err != nil {
-		return false, err
+		return false, stoabs.DatabaseError(err)
 	}
 	for i, value := range values {
 		if values[i] == nil {
@@ -428,6 +438,7 @@ func (s shelf) toRedisKey(key stoabs.Key) string {
 }
 
 func (s shelf) fromRedisKey(key string, keyType stoabs.Key) (stoabs.Key, error) {
+	// returned errors are the result of invalid input, hence not wrapped in ErrDatabase
 	if len(s.prefix) > 0 {
 		dbPrefix := s.prefix + ":"
 		if !strings.HasPrefix(key, dbPrefix) {

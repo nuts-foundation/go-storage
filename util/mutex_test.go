@@ -20,8 +20,10 @@ package util
 
 import (
 	"context"
+	"github.com/nuts-foundation/go-stoabs"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func Test_ContextRWLocker(t *testing.T) {
@@ -81,5 +83,15 @@ func Test_ContextRWLocker(t *testing.T) {
 
 		err := l.LockContext(ctx)
 		assert.ErrorIs(t, err, context.Canceled)
+		assert.ErrorIs(t, err, stoabs.ErrDatabase{})
+	})
+	t.Run("context timeout", func(t *testing.T) {
+		l := ContextRWLocker{}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+
+		err := l.LockContext(ctx)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.ErrorIs(t, err, stoabs.ErrDatabase{})
 	})
 }

@@ -18,7 +18,10 @@
 
 package util
 
-import "context"
+import (
+	"context"
+	"github.com/nuts-foundation/go-stoabs"
+)
 
 // CallWithTimeout invokes the given function and waits until either it finishes or the given context finishes.
 // If the context finishes before the function finishes, the timeoutCallback function is invoked.
@@ -30,7 +33,7 @@ func CallWithTimeout(ctx context.Context, fn func() error, timeoutCallback func(
 	select {
 	case <-ctx.Done():
 		timeoutCallback()
-		return ctx.Err()
+		return stoabs.DatabaseError(ctx.Err())
 	case err := <-closeError:
 		// Function completed, maybe with error
 		return err

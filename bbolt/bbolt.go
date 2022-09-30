@@ -60,7 +60,7 @@ func CreateBBoltStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, e
 func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config) (stoabs.KVStore, error) {
 	err := os.MkdirAll(path.Dir(filePath), os.ModePerm) // TODO: Right permissions?
 	if err != nil {
-		return nil, err
+		return nil, stoabs.DatabaseError(err)
 	}
 
 	done := make(chan bool, 1)
@@ -80,7 +80,7 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	db, err := bbolt.Open(filePath, os.FileMode(0640), options) // TODO: Right permissions?
 	done <- true
 	if err != nil {
-		return nil, err
+		return nil, stoabs.DatabaseError(err)
 	}
 
 	return Wrap(db, cfg), nil
@@ -104,9 +104,13 @@ type store struct {
 }
 
 func (b *store) Close(ctx context.Context) error {
-	return util.CallWithTimeout(ctx, b.db.Close, func() {
+	err := util.CallWithTimeout(ctx, b.db.Close, func() {
 		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
 	})
+	if err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (b *store) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
@@ -160,7 +164,10 @@ func (b *store) doTX(ctx context.Context, fn func(tx *bbolt.Tx) error, writable 
 	dbTX, err := b.db.Begin(writable)
 	if err != nil {
 		unlock()
-		return err
+		if err == bbolt.ErrDatabaseNotOpen {
+			return stoabs.ErrStoreIsClosed
+		}
+		return stoabs.DatabaseError(err)
 	}
 
 	// Perform TX action(s)
@@ -224,7 +231,7 @@ func (b bboltTx) GetShelfReader(shelfName string) stoabs.Reader {
 func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
 	bucket, err := b.tx.CreateBucketIfNotExists([]byte(shelfName))
 	if err != nil {
-		return nil, err
+		return nil, stoabs.DatabaseError(err)
 	}
 	return &bboltShelf{bucket: bucket, ctx: b.ctx}, nil
 }
@@ -257,11 +264,17 @@ func (t bboltShelf) Get(key stoabs.Key) ([]byte, error) {
 }
 
 func (t bboltShelf) Put(key stoabs.Key, value []byte) error {
-	return t.bucket.Put(key.Bytes(), value)
+	if err := t.bucket.Put(key.Bytes(), value); err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (t bboltShelf) Delete(key stoabs.Key) error {
-	return t.bucket.Delete(key.Bytes())
+	if err := t.bucket.Delete(key.Bytes()); err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
 }
 
 func (t bboltShelf) Stats() stoabs.ShelfStats {
@@ -276,13 +289,14 @@ func (t bboltShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error 
 	for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
 		// Potentially long-running operation, check context for cancellation
 		if t.ctx.Err() != nil {
-			return t.ctx.Err()
+			return stoabs.DatabaseError(t.ctx.Err())
 		}
 		// return a copy to avoid data manipulation
 		vCopy := append(v[:0:0], v...)
 		key, err := keyType.FromBytes(k)
 		if err != nil {
-			return nil
+			// should never happen
+			return err
 		}
 		if err := callback(key, vCopy); err != nil {
 			return err
@@ -297,7 +311,7 @@ func (t bboltShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Caller
 	for k, v := cursor.Seek(from.Bytes()); k != nil && bytes.Compare(k, to.Bytes()) < 0; k, v = cursor.Next() {
 		// Potentially long-running operation, check context for cancellation
 		if t.ctx.Err() != nil {
-			return t.ctx.Err()
+			return stoabs.DatabaseError(t.ctx.Err())
 		}
 		key, err := from.FromBytes(k)
 		if err != nil {

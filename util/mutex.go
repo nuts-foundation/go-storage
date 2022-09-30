@@ -20,6 +20,7 @@ package util
 
 import (
 	"context"
+	"github.com/nuts-foundation/go-stoabs"
 	"sync"
 	"sync/atomic"
 )
@@ -83,7 +84,7 @@ func lockWithCancel(ctx context.Context, fnLock func(), fnUnlock func()) error {
 		defer m.Unlock()
 		// context expired, signal to the locking goroutine to unlock immediately after acquiring the lock
 		expired.Store(true)
-		return ctx.Err()
+		return stoabs.DatabaseError(ctx.Err())
 	case <-locked:
 		// we got the lock before the context expired
 		return nil

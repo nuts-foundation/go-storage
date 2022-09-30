@@ -274,6 +274,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			assert.EqualError(t, err, "failure")
+			assert.NotErrorIs(t, err, stoabs.ErrDatabase{})
 		})
 
 		t.Run("TX context cancelled", func(t *testing.T) {
@@ -281,20 +282,25 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 
 			// Write some data
 			_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
-				return writer.Put(bytesKey, bytesValue)
+				for _, e := range input {
+					_ = writer.Put(e.key, e.value)
+				}
+				return nil
 			})
 
 			// Cancel read context
 			ctx, cancel := context.WithCancel(ctx)
-			cancel()
 
 			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
 				return reader.Range(bytesKey, largerBytesKey, func(key stoabs.Key, value []byte) error {
+					// cancel within Range to make sure the context cancellation is caught during Range()
+					cancel()
 					return nil
 				}, false)
 			})
 
 			assert.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
 		})
 	})
 }
@@ -410,6 +416,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 				return err
 			})
 			assert.EqualError(t, err, "failure")
+			assert.NotErrorIs(t, err, stoabs.ErrDatabase{})
 		})
 
 		t.Run("TX context cancelled", func(t *testing.T) {
@@ -422,6 +429,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 
 			// Cancel read context
 			ctx, cancel := context.WithCancel(ctx)
+			// TODO: move cancellation inside iterator. Currently returns before iterator is reached
 			cancel()
 
 			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
@@ -431,6 +439,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 			})
 
 			assert.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
 		})
 	})
 }
@@ -485,6 +494,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				return errors.New("failure")
 			})
 			assert.Error(t, err)
+			assert.NotErrorIs(t, err, stoabs.ErrDatabase{}) // user error
 			assert.Equal(t, bytesValue, actualValue)
 
 			// Assert that the first key can be read, but the second and third keys not
@@ -580,10 +590,12 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			cancel()
 
 			// Transaction should now have been aborted because context was cancelled
-			assert.ErrorIs(t, <-errs, context.Canceled)
+			err := <-errs
+			assert.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
 			// Assert value hasn't been ommitted
 			var actual []byte
-			err := store.ReadShelf(context.Background(), shelf, func(reader stoabs.Reader) error {
+			err = store.ReadShelf(context.Background(), shelf, func(reader stoabs.Reader) error {
 				var err error
 				actual, err = reader.Get(bytesKey)
 				return err
@@ -650,6 +662,7 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 			}, stoabs.WithWriteLock())
 
 			assert.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
 		})
 	})
 }
@@ -705,14 +718,14 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
-			assert.Equal(t, err, stoabs.ErrStoreIsClosed)
+			assert.Equal(t, stoabs.ErrStoreIsClosed, err)
 		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			err := store.Close(ctx)
-			assert.Equal(t, err, context.Canceled)
+			assert.Equal(t, stoabs.DatabaseError(context.Canceled), err)
 		})
 	})
 }
