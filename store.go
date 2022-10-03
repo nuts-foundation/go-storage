@@ -33,7 +33,7 @@ func DatabaseError(err error) error {
 		// Only wrap once to keep ErrDatabase closest to the actual database error
 		return err
 	}
-	return &ErrDatabase{err}
+	return ErrDatabase{err}
 }
 
 // ErrDatabase signals that the wrapped error is related to database access, or due to context cancellation/timeout.
