@@ -19,6 +19,8 @@
 package stoabs
 
 import (
+	"errors"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -39,4 +41,20 @@ func TestAcquireLockTimeout(t *testing.T) {
 func TestWriteLockOption(t *testing.T) {
 	assert.True(t, WriteLockOption{}.Enabled([]TxOption{WithWriteLock()}))
 	assert.False(t, WriteLockOption{}.Enabled([]TxOption{}))
+}
+
+func TestDatabaseError(t *testing.T) {
+	t.Run("wraps DB errors", func(t *testing.T) {
+		assert.ErrorAs(t, ErrStoreIsClosed, new(ErrDatabase), "ErrStoreIsClosed should be a ErrDatabase")
+		assert.ErrorAs(t, ErrCommitFailed, new(ErrDatabase), "ErrCommitFailed should be a ErrDatabase")
+	})
+	t.Run("does not double wrap", func(t *testing.T) {
+		firstError := DatabaseError(errors.New("this is wrapped"))
+		secondError := DatabaseError(fmt.Errorf("this is not wrapped: %w", firstError))
+		target := new(ErrDatabase)
+
+		assert.ErrorAs(t, firstError, new(ErrDatabase))
+		assert.ErrorAs(t, secondError, target)
+		assert.ErrorIs(t, target, firstError)
+	})
 }
