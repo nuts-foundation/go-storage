@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/alicebob/miniredis/v2 v2.23.0
-	github.com/go-redis/redis/v9 v9.0.0-beta.3
+	github.com/go-redis/redis/v9 v9.0.0-rc.1
 	github.com/go-redsync/redsync/v4 v4.6.0
 	github.com/golang/mock v1.6.0
 	github.com/sirupsen/logrus v1.9.0
