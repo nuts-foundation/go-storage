@@ -723,7 +723,7 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
 				return writer.Put(bytesKey, bytesValue)
 			})
-			assert.Equal(t, stoabs.ErrStoreIsClosed, err)
+			assert.Error(t, err)
 		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)

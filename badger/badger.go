@@ -291,7 +291,10 @@ func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error
 			return err
 		}
 	}
-	return t.ctx.Err()
+	if t.ctx.Err() != nil {
+		return stoabs.DatabaseError(t.ctx.Err())
+	}
+	return nil
 }
 
 func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
@@ -331,5 +334,8 @@ func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Calle
 		}
 		prevKey = key
 	}
-	return t.ctx.Err()
+	if t.ctx.Err() != nil {
+		return stoabs.DatabaseError(t.ctx.Err())
+	}
+	return nil
 }
