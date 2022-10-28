@@ -44,14 +44,17 @@ var fileTimeout = defaultFileTimeout
 
 // CreateBadgerStore creates a new Badger-backed KV store.
 func CreateBadgerStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
-	cfg := stoabs.Config{}
+	cfg := stoabs.DefaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	badgerOpts := badger.DefaultOptions(filePath).WithLogger(getLogger(cfg))
+	badgerOpts := badger.DefaultOptions(filePath)
 	if cfg.NoSync {
 		badgerOpts = badgerOpts.WithInMemory(true).WithDir("").WithValueDir("")
+	}
+	if cfg.Log != nil {
+		badgerOpts = badgerOpts.WithLogger(cfg.Log)
 	}
 
 	return createBadgerStore(filePath, badgerOpts, cfg)
@@ -64,7 +67,6 @@ func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Confi
 	}
 
 	// log warning if file opening hangs
-	cfg.Log = getLogger(cfg)
 	done := make(chan bool, 1)
 	ticker := time.NewTicker(fileTimeout)
 	go func() {
@@ -92,15 +94,8 @@ func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Confi
 func Wrap(db *badger.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
 		db:  db,
-		log: getLogger(cfg),
+		log: cfg.Log,
 	}
-}
-
-func getLogger(cfg stoabs.Config) *logrus.Logger {
-	if cfg.Log != nil {
-		return cfg.Log
-	}
-	return stoabs.DefaultLogger()
 }
 
 type store struct {
@@ -144,9 +139,7 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 	}, false, nil)
 }
 
-func (b *store) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writable bool, optsSlice []stoabs.TxOption) error {
-	opts := stoabs.TxOptions(optsSlice)
-
+func (b *store) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writable bool, opts []stoabs.TxOption) error {
 	if writable {
 		b.mutex.Lock()
 	}
@@ -176,15 +169,15 @@ func (b *store) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writabl
 		}
 		b.mutex.Unlock()
 		if err != nil {
-			opts.InvokeOnRollback()
+			stoabs.OnRollbackOption{}.Invoke(opts)
 			return util.WrapError(stoabs.ErrCommitFailed, err)
 		}
 
-		opts.InvokeAfterCommit()
+		stoabs.AfterCommitOption{}.Invoke(opts)
 	} else {
 		b.log.WithError(appError).Warn("Rolling back transaction application due to error")
 		rollbackTX(dbTX)
-		opts.InvokeOnRollback()
+		stoabs.OnRollbackOption{}.Invoke(opts)
 		return appError
 	}
 
