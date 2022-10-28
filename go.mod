@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/alicebob/miniredis/v2 v2.23.1
-	github.com/dgraph-io/badger/v3 v3.2103.2
+	github.com/dgraph-io/badger/v3 v3.2103.3
 	github.com/go-redis/redis/v9 v9.0.0-rc.1
 	github.com/go-redsync/redsync/v4 v4.6.0
 	github.com/golang/mock v1.6.0
@@ -18,7 +18,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgraph-io/ristretto v0.1.0 // indirect
+	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -35,7 +35,7 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.0.0-20221010170243-090e33056c14 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

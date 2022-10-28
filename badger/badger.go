@@ -50,6 +50,9 @@ func CreateBadgerStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, 
 	}
 
 	badgerOpts := badger.DefaultOptions(filePath).WithLogger(getLogger(cfg))
+	if cfg.NoSync {
+		badgerOpts = badgerOpts.WithInMemory(true).WithDir("").WithValueDir("")
+	}
 
 	return createBadgerStore(filePath, badgerOpts, cfg)
 }
@@ -163,7 +166,7 @@ func (b *store) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writabl
 	// Observe result, commit/rollback
 	var err error
 	if appError == nil {
-		b.log.Trace("Committing BBolt transaction")
+		b.log.Trace("Committing Badger transaction")
 		// Check context cancellation, if not cancelled/expired; commit.
 		if ctx.Err() != nil {
 			err = ctx.Err()
@@ -207,11 +210,11 @@ func (b badgerTx) GetShelfReader(shelfName string) stoabs.Reader {
 }
 
 func (b badgerTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return &badgerShelf{name: shelfName, tx: b.tx, ctx: b.ctx}, nil
+	return &badgerShelf{name: shelfName, store: b.store, tx: b.tx, ctx: b.ctx}, nil
 }
 
 func (b badgerTx) getBucket(shelfName string) stoabs.Reader {
-	return &badgerShelf{name: shelfName, tx: b.tx, ctx: b.ctx}
+	return &badgerShelf{name: shelfName, store: b.store, tx: b.tx, ctx: b.ctx}
 }
 
 func (b badgerTx) Store() stoabs.KVStore {
@@ -219,9 +222,10 @@ func (b badgerTx) Store() stoabs.KVStore {
 }
 
 type badgerShelf struct {
-	name string
-	tx   *badger.Txn
-	ctx  context.Context
+	name  string
+	store *store
+	tx    *badger.Txn
+	ctx   context.Context
 }
 
 func (t badgerShelf) key(key stoabs.Key) stoabs.Key {
@@ -252,36 +256,69 @@ func (t badgerShelf) Delete(key stoabs.Key) error {
 }
 
 func (t badgerShelf) Stats() stoabs.ShelfStats {
+	var onDiskSize, keyCount uint
+	tables := t.store.db.Tables()
+	prefix := []byte(t.name)
+	for _, ti := range tables {
+		if bytes.HasPrefix(ti.Left, prefix) && bytes.HasPrefix(ti.Right, prefix) {
+			onDiskSize += uint(ti.OnDiskSize)
+			keyCount += uint(ti.KeyCount)
+			//uncompressedSize += uint64(ti.UncompressedSize)
+		}
+	}
 	return stoabs.ShelfStats{
-		NumEntries: 0,
-		ShelfSize:  0,
+		NumEntries: keyCount,
+		ShelfSize:  onDiskSize,
 	}
 }
 
 func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
 	it := t.tx.NewIterator(badger.DefaultIteratorOptions)
 	defer it.Close()
+
+	// manual closure of iterator required
+	go func() {
+		if done := t.ctx.Done(); done != nil {
+			<-done
+			it.Close()
+		}
+	}()
+
 	prefix := []byte(t.name)
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+	for it.Seek(prefix); it.ValidForPrefix(prefix) && t.ctx.Err() == nil; it.Next() {
 		item := it.Item()
 		k := item.Key()
-		return item.Value(func(v []byte) error {
+		if err := item.Value(func(v []byte) error {
 			kt, err := keyType.FromBytes(k[len(prefix):])
 			if err != nil {
 				return err
 			}
 			return callback(kt, v)
-		})
+		}); err != nil {
+			return err
+		}
 	}
-	return nil
+	return t.ctx.Err()
 }
 
 func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
 	it := t.tx.NewIterator(badger.DefaultIteratorOptions)
 	defer it.Close()
+
+	// manual closure of iterator required
+	go func() {
+		if done := t.ctx.Done(); done != nil {
+			<-done
+			it.Close()
+		}
+	}()
+
 	prefix := []byte(t.name)
 	var prevKey stoabs.Key
-	for it.Seek(prefix); it.ValidForPrefix(prefix) && bytes.Compare(it.Item().Key(), to.Bytes()) < 0; it.Next() {
+	end := make([]byte, len(t.name)+len(to.Bytes()))
+	copy(end, prefix)
+	copy(end[4:], to.Bytes())
+	for it.Seek(prefix); it.ValidForPrefix(prefix) && bytes.Compare(it.Item().Key(), end) < 0 && t.ctx.Err() == nil; it.Next() {
 		item := it.Item()
 		k := item.Key()
 		key, _ := from.FromBytes(k)
@@ -300,7 +337,6 @@ func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Calle
 			return err
 		}
 		prevKey = key
-		return nil
 	}
-	return nil
+	return t.ctx.Err()
 }
