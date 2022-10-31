@@ -61,28 +61,12 @@ func CreateBadgerStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, 
 }
 
 func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Config) (stoabs.KVStore, error) {
-	err := os.MkdirAll(path.Dir(filePath), os.ModePerm)
+	err := os.MkdirAll(path.Dir(filePath), 0644)
 	if err != nil {
 		return nil, err
 	}
 
-	// log warning if file opening hangs
-	done := make(chan bool, 1)
-	ticker := time.NewTicker(fileTimeout)
-	go func() {
-		for {
-			select {
-			case <-done:
-				ticker.Stop()
-				return
-			case <-ticker.C:
-				cfg.Log.Warnf("Trying to open %s, but file appears to be locked", filePath)
-			}
-		}
-	}()
-
 	db, err := badger.Open(options)
-	done <- true
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +74,7 @@ func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Confi
 	return Wrap(db, cfg), nil
 }
 
-// Wrap creates a KVStore using an existing bbolt.DB
+// Wrap creates a KVStore using an existing badger.DB
 func Wrap(db *badger.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
 		db:  db,
@@ -106,7 +90,7 @@ type store struct {
 
 func (b *store) Close(ctx context.Context) error {
 	return util.CallWithTimeout(ctx, b.db.Close, func() {
-		b.log.Error("Closing of BBolt store timed out, store may not shut down correctly.")
+		b.log.Error("Closing of Badger store timed out, store may not shut down correctly.")
 	})
 }
 
@@ -223,7 +207,7 @@ type badgerShelf struct {
 
 func (t badgerShelf) key(key stoabs.Key) stoabs.Key {
 	myBytes := []byte(t.name)
-	newKey := stoabs.BytesKey((append(myBytes, key.Bytes()...)))
+	newKey := stoabs.BytesKey(append(myBytes, key.Bytes()...))
 	return newKey
 }
 
@@ -248,6 +232,7 @@ func (t badgerShelf) Delete(key stoabs.Key) error {
 	return t.tx.Delete(t.key(key).Bytes())
 }
 
+// Stats are currently broken
 func (t badgerShelf) Stats() stoabs.ShelfStats {
 	var onDiskSize, keyCount uint
 	tables := t.store.db.Tables()
