@@ -40,7 +40,7 @@ const shelf = "test"
 
 func TestBadger(t *testing.T) {
 	provider := func(t *testing.T) (stoabs.KVStore, error) {
-		return CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.db"), stoabs.WithNoSync())
+		return CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.DB"), stoabs.WithNoSync())
 	}
 
 	kvtests.TestReadingAndWriting(t, provider)
@@ -94,7 +94,7 @@ func TestBadger_WriteShelf(t *testing.T) {
 }
 
 func createStore(t *testing.T) (stoabs.KVStore, error) {
-	store, err := CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.db"), stoabs.WithNoSync())
+	store, err := CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.DB"), stoabs.WithNoSync())
 	t.Cleanup(func() {
 		_ = store.Close(context.Background())
 	})
@@ -103,10 +103,10 @@ func createStore(t *testing.T) (stoabs.KVStore, error) {
 
 func TestBadger_CreateBadgerStore(t *testing.T) {
 	t.Run("opening locked file logs warning", func(t *testing.T) {
-		filename := filepath.Join(util.TestDirectory(t), "test-store")
+		filename := filepath.Join(util.TestDirectory(t), "test-BadgerStore")
 		logger, _ := test.NewNullLogger()
 
-		// create first store
+		// create first BadgerStore
 		store1, err := CreateBadgerStore(filename)
 		if !assert.NoError(t, err) {
 			return

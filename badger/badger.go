@@ -42,7 +42,7 @@ const defaultFileTimeout = 5 * time.Second
 
 var fileTimeout = defaultFileTimeout
 
-// CreateBadgerStore creates a new Badger-backed KV store.
+// CreateBadgerStore creates a new Badger-backed KV BadgerStore.
 func CreateBadgerStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, error) {
 	cfg := stoabs.DefaultConfig()
 	for _, opt := range opts {
@@ -76,37 +76,37 @@ func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Confi
 
 // Wrap creates a KVStore using an existing badger.DB
 func Wrap(db *badger.DB, cfg stoabs.Config) stoabs.KVStore {
-	return &store{
-		db:  db,
+	return &BadgerStore{
+		DB:  db,
 		log: cfg.Log,
 	}
 }
 
-type store struct {
-	db    *badger.DB
+type BadgerStore struct {
+	DB    *badger.DB
 	log   *logrus.Logger
 	mutex sync.Mutex
 }
 
-func (b *store) Close(ctx context.Context) error {
-	return util.CallWithTimeout(ctx, b.db.Close, func() {
-		b.log.Error("Closing of Badger store timed out, store may not shut down correctly.")
+func (b *BadgerStore) Close(ctx context.Context) error {
+	return util.CallWithTimeout(ctx, b.DB.Close, func() {
+		b.log.Error("Closing of Badger BadgerStore timed out, BadgerStore may not shut down correctly.")
 	})
 }
 
-func (b *store) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
+func (b *BadgerStore) Write(ctx context.Context, fn func(stoabs.WriteTx) error, opts ...stoabs.TxOption) error {
 	return b.doTX(ctx, func(tx *badger.Txn) error {
 		return fn(&badgerTx{tx: tx, store: b, ctx: ctx})
 	}, true, opts)
 }
 
-func (b *store) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
+func (b *BadgerStore) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
 	return b.doTX(ctx, func(tx *badger.Txn) error {
 		return fn(&badgerTx{tx: tx, store: b, ctx: ctx})
 	}, false, nil)
 }
 
-func (b *store) WriteShelf(ctx context.Context, shelfName string, fn func(writer stoabs.Writer) error) error {
+func (b *BadgerStore) WriteShelf(ctx context.Context, shelfName string, fn func(writer stoabs.Writer) error) error {
 	return b.doTX(ctx, func(tx *badger.Txn) error {
 		shelf, err := badgerTx{tx: tx, store: b, ctx: ctx}.GetShelfWriter(shelfName)
 		if err != nil {
@@ -116,20 +116,20 @@ func (b *store) WriteShelf(ctx context.Context, shelfName string, fn func(writer
 	}, true, nil)
 }
 
-func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader stoabs.Reader) error) error {
+func (b *BadgerStore) ReadShelf(ctx context.Context, shelfName string, fn func(reader stoabs.Reader) error) error {
 	return b.doTX(ctx, func(tx *badger.Txn) error {
 		shelf := badgerTx{tx: tx, store: b, ctx: ctx}.GetShelfReader(shelfName)
 		return fn(shelf)
 	}, false, nil)
 }
 
-func (b *store) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writable bool, opts []stoabs.TxOption) error {
+func (b *BadgerStore) doTX(ctx context.Context, fn func(tx *badger.Txn) error, writable bool, opts []stoabs.TxOption) error {
 	if writable {
 		b.mutex.Lock()
 	}
 
 	// Start transaction, retrieve/create shelf to operate on
-	dbTX := b.db.NewTransaction(writable)
+	dbTX := b.DB.NewTransaction(writable)
 	defer dbTX.Discard()
 
 	// Perform TX action(s)
@@ -173,7 +173,7 @@ func rollbackTX(dbTX *badger.Txn) {
 }
 
 type badgerTx struct {
-	store *store
+	store *BadgerStore
 	tx    *badger.Txn
 	ctx   context.Context
 }
@@ -200,7 +200,7 @@ func (b badgerTx) Store() stoabs.KVStore {
 
 type badgerShelf struct {
 	name  string
-	store *store
+	store *BadgerStore
 	tx    *badger.Txn
 	ctx   context.Context
 }
@@ -235,7 +235,7 @@ func (t badgerShelf) Delete(key stoabs.Key) error {
 // Stats are currently broken
 func (t badgerShelf) Stats() stoabs.ShelfStats {
 	var onDiskSize, keyCount uint
-	tables := t.store.db.Tables()
+	tables := t.store.DB.Tables()
 	prefix := []byte(t.name)
 	for _, ti := range tables {
 		if bytes.HasPrefix(ti.Left, prefix) && bytes.HasPrefix(ti.Right, prefix) {
