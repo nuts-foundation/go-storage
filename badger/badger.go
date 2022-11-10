@@ -176,7 +176,7 @@ func (b *Store) doTX(ctx context.Context, fn func(tx *tx) error, writable bool, 
 type tx struct {
 	ctx       context.Context
 	iterators []*badger.Iterator
-	mutex     sync.Mutex
+	mutex     sync.RWMutex
 	store     *Store
 	badgerTx  *badger.Txn
 }
@@ -282,17 +282,10 @@ func (t badgerShelf) Stats() stoabs.ShelfStats {
 }
 
 func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error {
+	// closed by commit or rollback
 	it := t.tx.newIterator()
-	defer it.Close()
-
-	// manual closure of iterator required
-	go func() {
-		if done := t.tx.ctx.Done(); done != nil {
-			<-done
-			println("cancelled")
-			it.Close()
-		}
-	}()
+	t.tx.mutex.RLock()
+	defer t.tx.mutex.RUnlock()
 
 	prefix := []byte(t.name)
 	for it.Seek(prefix); it.ValidForPrefix(prefix) && t.tx.ctx.Err() == nil; it.Next() {
@@ -316,16 +309,10 @@ func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error
 }
 
 func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.CallerFn, stopAtNil bool) error {
+	// closed by commit or rollback
 	it := t.tx.newIterator()
-	defer it.Close()
-
-	// manual closure of iterator required
-	go func() {
-		if done := t.tx.ctx.Done(); done != nil {
-			<-done
-			it.Close()
-		}
-	}()
+	t.tx.mutex.RLock()
+	defer t.tx.mutex.RUnlock()
 
 	prefix := []byte(t.name)
 	var prevKey stoabs.Key
