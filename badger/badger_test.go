@@ -31,6 +31,7 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 var key = []byte{1, 2, 3}
@@ -92,6 +93,58 @@ func TestBadger_WriteShelf(t *testing.T) {
 		assert.Nil(t, actual)
 	})
 }
+func TestBadger_IteratorClose(t *testing.T) {
+	ctx := context.Background()
+
+	assertNoError := func(err error) {
+		assert.NoError(t, err)
+	}
+
+	tests := []struct {
+		ctx    context.Context
+		name   string
+		err    error
+		assert func(error)
+	}{
+		{
+			ctx,
+			"before rollback",
+			errors.New("failed"),
+			func(err error) {
+				assert.EqualError(t, err, "failed")
+			},
+		},
+		{
+			ctx,
+			"before commit",
+			nil,
+			assertNoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store, _ := createStore(t)
+
+			err := store.WriteShelf(test.ctx, shelf, func(writer stoabs.Writer) error {
+				err := writer.Put(stoabs.BytesKey(key), value)
+				if err != nil {
+					panic(err)
+				}
+				go func() {
+					writer.Iterate(func(key stoabs.Key, value []byte) error {
+						time.Sleep(5 * time.Millisecond)
+						return nil
+					}, stoabs.BytesKey{})
+				}()
+				time.Sleep(time.Millisecond)
+				return test.err
+			})
+
+			test.assert(err)
+		})
+	}
+}
 
 func createStore(t *testing.T) (stoabs.KVStore, error) {
 	store, err := CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.DB"), stoabs.WithNoSync())
@@ -103,10 +156,10 @@ func createStore(t *testing.T) (stoabs.KVStore, error) {
 
 func TestBadger_CreateBadgerStore(t *testing.T) {
 	t.Run("opening locked file logs warning", func(t *testing.T) {
-		filename := filepath.Join(util.TestDirectory(t), "test-BadgerStore")
+		filename := filepath.Join(util.TestDirectory(t), "test-Store")
 		logger, _ := test.NewNullLogger()
 
-		// create first BadgerStore
+		// create first Store
 		store1, err := CreateBadgerStore(filename)
 		if !assert.NoError(t, err) {
 			return
