@@ -311,10 +311,14 @@ func (t badgerShelf) Range(from stoabs.Key, to stoabs.Key, callback stoabs.Calle
 
 	prefix := []byte(t.name)
 	var prevKey stoabs.Key
+	start := make([]byte, len(t.name)+len(from.Bytes()))
+	copy(start, prefix)
+	copy(start[len(t.name):], from.Bytes())
 	end := make([]byte, len(t.name)+len(to.Bytes()))
 	copy(end, prefix)
-	copy(end[4:], to.Bytes())
-	for it.Seek(prefix); it.ValidForPrefix(prefix) && bytes.Compare(it.Item().Key(), end) < 0 && t.tx.ctx.Err() == nil; it.Next() {
+	copy(end[len(t.name):], to.Bytes())
+
+	for it.Seek(start); it.ValidForPrefix(prefix) && bytes.Compare(it.Item().Key(), end) < 0 && t.tx.ctx.Err() == nil; it.Next() {
 		item := it.Item()
 		k := item.Key()
 		key, _ := from.FromBytes(k)
