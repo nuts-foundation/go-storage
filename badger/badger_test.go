@@ -52,7 +52,8 @@ func TestBadger(t *testing.T) {
 	kvtests.TestDelete(t, provider)
 	//kvtests.TestStats(t, provider) //not yet completed
 	kvtests.TestWriteTransactions(t, provider)
-	kvtests.TestTransactionWriteLock(t, provider)
+	// Badger supports parallel transactions
+	//kvtests.TestTransactionWriteLock(t, provider)
 }
 
 func TestBadger_Unwrap(t *testing.T) {

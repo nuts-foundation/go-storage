@@ -80,9 +80,8 @@ func Wrap(db *badger.DB, cfg stoabs.Config) stoabs.KVStore {
 }
 
 type store struct {
-	DB    *badger.DB
-	log   *logrus.Logger
-	mutex sync.Mutex
+	DB  *badger.DB
+	log *logrus.Logger
 }
 
 func (b *store) Close(ctx context.Context) error {
@@ -121,11 +120,6 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 }
 
 func (b *store) doTX(ctx context.Context, fn func(tx *tx) error, writable bool, opts []stoabs.TxOption) error {
-	if writable {
-		b.mutex.Lock()
-		defer b.mutex.Unlock()
-	}
-
 	// Start transaction, retrieve/create shelf to operate on
 	tx := &tx{
 		badgerTx: b.DB.NewTransaction(writable),
@@ -304,7 +298,6 @@ func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error
 		}
 	}
 	if t.tx.ctx.Err() != nil {
-		println("cancelled err")
 		return stoabs.DatabaseError(t.tx.ctx.Err())
 	}
 	return nil
