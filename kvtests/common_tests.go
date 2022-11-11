@@ -21,6 +21,7 @@ package kvtests
 import (
 	"context"
 	"errors"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -462,11 +463,13 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				switch dbTX := tx.Unwrap().(type) {
 				case *bbolt.Tx:
 					_ = dbTX.Rollback()
+				case *badger.Txn:
+					dbTX.Discard()
 				default:
 					// Not supported
 					t.SkipNow()
 				}
-				return nil
+				return errors.New("rollbacked")
 			}, stoabs.OnRollback(func() {
 				rollbackCalled = true
 			}), stoabs.AfterCommit(func() {

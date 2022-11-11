@@ -30,8 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"path"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
-	"time"
 )
 
 var key = []byte{1, 2, 3}
@@ -66,39 +67,9 @@ func TestBadger_Unwrap(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestBadger_WriteShelf(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("rollback on application error", func(t *testing.T) {
-		store, _ := createStore(t)
-
-		err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
-			err := writer.Put(stoabs.BytesKey(key), value)
-			if err != nil {
-				panic(err)
-			}
-			return errors.New("failed")
-		})
-		assert.EqualError(t, err, "failed")
-
-		// Now assert the TX was rolled back
-		var actual []byte
-		err = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
-			actual, err = reader.Get(stoabs.BytesKey(key))
-			return err
-		})
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Nil(t, actual)
-	})
-}
+// TestBadger_IteratorClose tests that iterators are closed and panics are avoided
 func TestBadger_IteratorClose(t *testing.T) {
 	ctx := context.Background()
-
-	assertNoError := func(err error) {
-		assert.NoError(t, err)
-	}
 
 	tests := []struct {
 		ctx    context.Context
@@ -118,14 +89,18 @@ func TestBadger_IteratorClose(t *testing.T) {
 			ctx,
 			"before commit",
 			nil,
-			assertNoError,
+			func(err error) {
+				assert.NoError(t, err)
+			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store, _ := createStore(t)
-
+			check := atomic.Bool{}
+			group := sync.WaitGroup{}
+			group.Add(1)
 			err := store.WriteShelf(test.ctx, shelf, func(writer stoabs.Writer) error {
 				err := writer.Put(stoabs.BytesKey(key), value)
 				if err != nil {
@@ -133,33 +108,26 @@ func TestBadger_IteratorClose(t *testing.T) {
 				}
 				go func() {
 					writer.Iterate(func(key stoabs.Key, value []byte) error {
-						time.Sleep(5 * time.Millisecond)
+						check.Store(true)
+						group.Done()
 						return nil
 					}, stoabs.BytesKey{})
 				}()
-				time.Sleep(time.Millisecond)
+				group.Wait()
 				return test.err
 			})
-
+			assert.True(t, check.Load())
 			test.assert(err)
 		})
 	}
 }
 
-func createStore(t *testing.T) (stoabs.KVStore, error) {
-	store, err := CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.DB"), stoabs.WithNoSync())
-	t.Cleanup(func() {
-		_ = store.Close(context.Background())
-	})
-	return store, err
-}
-
 func TestBadger_CreateBadgerStore(t *testing.T) {
 	t.Run("opening locked file logs warning", func(t *testing.T) {
-		filename := filepath.Join(util.TestDirectory(t), "test-Store")
+		filename := filepath.Join(util.TestDirectory(t), "test-store")
 		logger, _ := test.NewNullLogger()
 
-		// create first Store
+		// create first store
 		store1, err := CreateBadgerStore(filename)
 		if !assert.NoError(t, err) {
 			return
@@ -170,4 +138,12 @@ func TestBadger_CreateBadgerStore(t *testing.T) {
 
 		assert.EqualError(t, err, fmt.Sprintf("Cannot acquire directory lock on \"%s\".  Another process is using this Badger database. error: resource temporarily unavailable", filename))
 	})
+}
+
+func createStore(t *testing.T) (stoabs.KVStore, error) {
+	store, err := CreateBadgerStore("", stoabs.WithNoSync())
+	t.Cleanup(func() {
+		_ = store.Close(context.Background())
+	})
+	return store, err
 }
