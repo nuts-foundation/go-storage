@@ -57,7 +57,8 @@ func CreateBadgerStore(filePath string, opts ...stoabs.Option) (stoabs.KVStore, 
 }
 
 func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Config) (stoabs.KVStore, error) {
-	err := os.MkdirAll(path.Dir(filePath), 0644)
+	// badger will create a subdir with 0700 and files in that subdir with 0644
+	err := os.MkdirAll(path.Dir(filePath), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
@@ -182,11 +183,11 @@ func (b *tx) GetShelfReader(shelfName string) stoabs.Reader {
 }
 
 func (b *tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return &badgerShelf{name: shelfName, tx: b}, nil
+	return &badgerShelf{name: shelfName, tx: b, ctx: b.ctx}, nil
 }
 
 func (b *tx) getBucket(shelfName string) stoabs.Reader {
-	return &badgerShelf{name: shelfName, tx: b}
+	return &badgerShelf{name: shelfName, tx: b, ctx: b.ctx}
 }
 
 func (b *tx) Store() stoabs.KVStore {
@@ -230,6 +231,7 @@ func (b *tx) commit() error {
 }
 
 type badgerShelf struct {
+	ctx  context.Context
 	name string
 	tx   *tx
 }
@@ -284,7 +286,7 @@ func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error
 	defer t.tx.mutex.RUnlock()
 
 	prefix := []byte(t.name)
-	for it.Seek(prefix); it.ValidForPrefix(prefix) && t.tx.ctx.Err() == nil; it.Next() {
+	for it.Seek(prefix); it.ValidForPrefix(prefix) && t.ctx.Err() == nil; it.Next() {
 		item := it.Item()
 		k := item.Key()
 		if err := item.Value(func(v []byte) error {
@@ -297,8 +299,8 @@ func (t badgerShelf) Iterate(callback stoabs.CallerFn, keyType stoabs.Key) error
 			return err
 		}
 	}
-	if t.tx.ctx.Err() != nil {
-		return stoabs.DatabaseError(t.tx.ctx.Err())
+	if t.ctx.Err() != nil {
+		return stoabs.DatabaseError(t.ctx.Err())
 	}
 	return nil
 }

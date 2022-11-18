@@ -712,21 +712,11 @@ func TestDelete(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestClose(t *testing.T, storeProvider StoreProvider) {
-	ctx := context.Background()
-
 	t.Run("Close()", func(t *testing.T) {
 		t.Run("close closed store", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			assert.NoError(t, store.Close(context.Background()))
 			assert.NoError(t, store.Close(context.Background()))
-		})
-		t.Run("write to closed store", func(t *testing.T) {
-			store := createStore(t, storeProvider)
-			assert.NoError(t, store.Close(context.Background()))
-			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
-				return writer.Put(bytesKey, bytesValue)
-			})
-			assert.Error(t, err)
 		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)
