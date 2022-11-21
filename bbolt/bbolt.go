@@ -86,7 +86,7 @@ func createBBoltStore(filePath string, options *bbolt.Options, cfg stoabs.Config
 	return Wrap(db, cfg), nil
 }
 
-// Wrap creates a KVStore using an existing bbolt.DB
+// Wrap creates a KVStore using an existing bbolt.db
 func Wrap(db *bbolt.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
 		db:   db,

@@ -42,7 +42,7 @@ const shelf = "test"
 
 func TestBadger(t *testing.T) {
 	provider := func(t *testing.T) (stoabs.KVStore, error) {
-		return CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.DB"), stoabs.WithNoSync())
+		return CreateBadgerStore(path.Join(util.TestDirectory(t), "badger.db"), stoabs.WithNoSync())
 	}
 
 	kvtests.TestReadingAndWriting(t, provider)

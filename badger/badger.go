@@ -72,21 +72,21 @@ func createBadgerStore(filePath string, options badger.Options, cfg stoabs.Confi
 	return Wrap(db, cfg), nil
 }
 
-// Wrap creates a KVStore using an existing badger.DB
+// Wrap creates a KVStore using an existing badger.db
 func Wrap(db *badger.DB, cfg stoabs.Config) stoabs.KVStore {
 	return &store{
-		DB:  db,
+		db:  db,
 		log: cfg.Log,
 	}
 }
 
 type store struct {
-	DB  *badger.DB
+	db  *badger.DB
 	log *logrus.Logger
 }
 
 func (b *store) Close(ctx context.Context) error {
-	return util.CallWithTimeout(ctx, b.DB.Close, func() {
+	return util.CallWithTimeout(ctx, b.db.Close, func() {
 		b.log.Error("Closing of Badger store timed out, store may not shut down correctly.")
 	})
 }
@@ -123,7 +123,7 @@ func (b *store) ReadShelf(ctx context.Context, shelfName string, fn func(reader 
 func (b *store) doTX(ctx context.Context, fn func(tx *tx) error, writable bool, opts []stoabs.TxOption) error {
 	// Start transaction, retrieve/create shelf to operate on
 	tx := &tx{
-		badgerTx: b.DB.NewTransaction(writable),
+		badgerTx: b.db.NewTransaction(writable),
 		ctx:      ctx,
 		store:    b,
 	}
@@ -265,7 +265,7 @@ func (t badgerShelf) Delete(key stoabs.Key) error {
 // Stats are currently broken
 func (t badgerShelf) Stats() stoabs.ShelfStats {
 	var onDiskSize, keyCount uint
-	tables := t.tx.store.DB.Tables()
+	tables := t.tx.store.db.Tables()
 	prefix := []byte(t.name)
 	for _, ti := range tables {
 		if bytes.HasPrefix(ti.Left, prefix) && bytes.HasPrefix(ti.Right, prefix) {

@@ -25,6 +25,7 @@ import (
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 	"sync"
 	"testing"
@@ -192,9 +193,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 				return err
 			})
 			assert.NoError(t, err)
-			if !assert.Len(t, actual, 2) {
-				return
-			}
+			require.Len(t, actual, 2)
 			assert.Equal(t, input[0], actual[0])
 			assert.Equal(t, input[1], actual[1])
 		})

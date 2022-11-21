@@ -138,12 +138,12 @@ func TestStore_ErrDatabase(t *testing.T) {
 	throwDBError := func(t *testing.T, fn func(writer stoabs.Writer) error) {
 		t.Run("contains ErrDatabase and mock error", func(t *testing.T) {
 			mock, store := NewTestStore(t)
-			mock.SetError("DB error")
+			mock.SetError("db error")
 
 			err := store.WriteShelf(context.Background(), "shelf", fn)
 
 			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
-			assert.Contains(t, err.Error(), "DB error")
+			assert.Contains(t, err.Error(), "db error")
 		})
 	}
 
