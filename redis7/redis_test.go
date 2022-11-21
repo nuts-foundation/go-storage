@@ -103,6 +103,23 @@ func TestCreateRedisStore(t *testing.T) {
 	})
 }
 
+func TestRedis_Close(t *testing.T) {
+	ctx := context.Background()
+	var bytesKey = stoabs.BytesKey([]byte{1, 2, 3})
+	var bytesValue = bytesKey.Next().Bytes()
+	_, store := NewTestStore(t)
+
+	t.Run("Close()", func(t *testing.T) {
+		t.Run("write to closed store", func(t *testing.T) {
+			assert.NoError(t, store.Close(context.Background()))
+			err := store.WriteShelf(ctx, "shelf", func(writer stoabs.Writer) error {
+				return writer.Put(bytesKey, bytesValue)
+			})
+			assert.Equal(t, stoabs.ErrStoreIsClosed, err)
+		})
+	})
+}
+
 func NewTestStore(t *testing.T) (*miniredis.Miniredis, store) {
 	mr := miniredis.RunT(t)
 	t.Cleanup(func() {
@@ -121,12 +138,12 @@ func TestStore_ErrDatabase(t *testing.T) {
 	throwDBError := func(t *testing.T, fn func(writer stoabs.Writer) error) {
 		t.Run("contains ErrDatabase and mock error", func(t *testing.T) {
 			mock, store := NewTestStore(t)
-			mock.SetError("DB error")
+			mock.SetError("db error")
 
 			err := store.WriteShelf(context.Background(), "shelf", fn)
 
 			assert.ErrorIs(t, err, stoabs.ErrDatabase{})
-			assert.Contains(t, err.Error(), "DB error")
+			assert.Contains(t, err.Error(), "db error")
 		})
 	}
 

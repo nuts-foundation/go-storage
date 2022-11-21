@@ -21,9 +21,11 @@ package kvtests
 import (
 	"context"
 	"errors"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 	"sync"
 	"testing"
@@ -156,10 +158,13 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 			value []byte
 		}
 		input := []entry{
+			// 1, 2, 3 => 1, 2, 4
 			{key: bytesKey, value: bytesValue},
 		}
+		// 1, 2, 4 => 1, 2, 4
 		input = append(input, entry{key: input[0].key.Next(), value: bytesValue})
 		// Here's a gap
+		// 1, 2, 5 => 1, 2, 4
 		input = append(input, entry{key: input[1].key.Next().Next(), value: bytesValue})
 
 		t.Run("range over values (with gaps, stop at gaps)", func(t *testing.T) {
@@ -188,7 +193,7 @@ func TestRange(t *testing.T, storeProvider StoreProvider) {
 				return err
 			})
 			assert.NoError(t, err)
-			assert.Len(t, actual, 2)
+			require.Len(t, actual, 2)
 			assert.Equal(t, input[0], actual[0])
 			assert.Equal(t, input[1], actual[1])
 		})
@@ -457,11 +462,13 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				switch dbTX := tx.Unwrap().(type) {
 				case *bbolt.Tx:
 					_ = dbTX.Rollback()
+				case *badger.Txn:
+					dbTX.Discard()
 				default:
 					// Not supported
 					t.SkipNow()
 				}
-				return nil
+				return errors.New("rollbacked")
 			}, stoabs.OnRollback(func() {
 				rollbackCalled = true
 			}), stoabs.AfterCommit(func() {
@@ -704,21 +711,11 @@ func TestDelete(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestClose(t *testing.T, storeProvider StoreProvider) {
-	ctx := context.Background()
-
 	t.Run("Close()", func(t *testing.T) {
 		t.Run("close closed store", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 			assert.NoError(t, store.Close(context.Background()))
 			assert.NoError(t, store.Close(context.Background()))
-		})
-		t.Run("write to closed store", func(t *testing.T) {
-			store := createStore(t, storeProvider)
-			assert.NoError(t, store.Close(context.Background()))
-			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
-				return writer.Put(bytesKey, bytesValue)
-			})
-			assert.Equal(t, stoabs.ErrStoreIsClosed, err)
 		})
 		t.Run("timeout", func(t *testing.T) {
 			store := createStore(t, storeProvider)
@@ -731,33 +728,37 @@ func TestClose(t *testing.T, storeProvider StoreProvider) {
 }
 
 func TestStats(t *testing.T, storeProvider StoreProvider) {
-	ctx := context.Background()
+	t.Run("stats", func(t *testing.T) {
+		ctx := context.Background()
 
-	store := createStore(t, storeProvider)
-	getStats := func(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
-		var stats stoabs.ShelfStats
-		_ = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
-			stats = reader.Stats()
-			return nil
-		})
-		return stats
-	}
+		store := createStore(t, storeProvider)
+		getStats := func(store stoabs.KVStore, shelf string) stoabs.ShelfStats {
+			var stats stoabs.ShelfStats
+			_ = store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
+				stats = reader.Stats()
+				return nil
+			})
+			return stats
+		}
 
-	t.Run("empty", func(t *testing.T) {
-		stats := getStats(store, shelf)
-		assert.Equal(t, uint(0), stats.NumEntries)
-		assert.Equal(t, uint(0), stats.ShelfSize)
-	})
-
-	t.Run("non-empty", func(t *testing.T) {
-		_ = store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
-			return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
+		t.Run("empty", func(t *testing.T) {
+			stats := getStats(store, shelf)
+			assert.Equal(t, uint(0), stats.NumEntries)
+			assert.Equal(t, uint(0), stats.ShelfSize)
 		})
 
-		stats := getStats(store, shelf)
+		t.Run("non-empty", func(t *testing.T) {
+			err := store.WriteShelf(ctx, shelf, func(writer stoabs.Writer) error {
+				return writer.Put(stoabs.Uint32Key(2), []byte("test value"))
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			stats := getStats(store, shelf)
 
-		assert.Equal(t, uint(1), stats.NumEntries)
-		assert.Less(t, uint(0), stats.ShelfSize)
+			assert.Equal(t, uint(1), stats.NumEntries)
+			assert.Less(t, uint(0), stats.ShelfSize)
+		})
 	})
 }
 

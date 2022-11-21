@@ -44,7 +44,7 @@ func TestWriteLockOption(t *testing.T) {
 }
 
 func TestDatabaseError(t *testing.T) {
-	t.Run("wraps DB errors", func(t *testing.T) {
+	t.Run("wraps db errors", func(t *testing.T) {
 		assert.ErrorAs(t, ErrStoreIsClosed, new(ErrDatabase), "ErrStoreIsClosed should be a ErrDatabase")
 		assert.ErrorAs(t, ErrCommitFailed, new(ErrDatabase), "ErrCommitFailed should be a ErrDatabase")
 	})
