@@ -241,8 +241,8 @@ func OnRollback(fn func()) TxOption {
 type WriteTx interface {
 	ReadTx
 	// GetShelfWriter returns the specified shelf for writing. If it doesn't exist, it will be created.
-	// Returns a ErrDatabase if unsuccessful.
-	GetShelfWriter(shelfName string) (Writer, error)
+	// Returns a ErrWriter if unsuccessful.
+	GetShelfWriter(shelfName string) Writer
 }
 
 // ReadTx is used to read from a KVStore.
@@ -275,4 +275,41 @@ func (n NilReader) Stats() ShelfStats {
 		NumEntries: 0,
 		ShelfSize:  0,
 	}
+}
+
+// NewErrorWriter returns a Writer that will return the error for every method
+func NewErrorWriter(err error) Writer {
+	return errWriter{err: err}
+}
+
+// ErrWriter is a shelfWriter that already failed, but to reduce the error count it'll fail on the write operation
+type errWriter struct {
+	err error
+}
+
+func (e errWriter) Get(_ Key) ([]byte, error) {
+	return nil, e.err
+}
+
+func (e errWriter) Iterate(_ CallerFn, _ Key) error {
+	return e.err
+}
+
+func (e errWriter) Range(_ Key, _ Key, _ CallerFn, _ bool) error {
+	return e.err
+}
+
+func (e errWriter) Stats() ShelfStats {
+	return ShelfStats{
+		NumEntries: 0,
+		ShelfSize:  0,
+	}
+}
+
+func (e errWriter) Put(_ Key, _ []byte) error {
+	return e.err
+}
+
+func (e errWriter) Delete(_ Key) error {
+	return e.err
 }

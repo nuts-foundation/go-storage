@@ -79,7 +79,7 @@ func TestRedis(t *testing.T) {
 		var deadline time.Time
 		var set bool
 		_ = redisStore.Write(context.Background(), func(tx stoabs.WriteTx) error {
-			writer, _ := tx.GetShelfWriter("foo")
+			writer := tx.GetShelfWriter("foo")
 			deadline, set = writer.(*shelf).ctx.Deadline()
 			return nil
 		}, stoabs.WithWriteLock())

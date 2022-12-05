@@ -281,8 +281,8 @@ type tx struct {
 	ctx    context.Context
 }
 
-func (t tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return t.store.getShelf(t.ctx, shelfName, t.writer, t.reader), nil
+func (t tx) GetShelfWriter(shelfName string) stoabs.Writer {
+	return t.store.getShelf(t.ctx, shelfName, t.writer, t.reader)
 }
 
 func (t tx) GetShelfReader(shelfName string) stoabs.Reader {

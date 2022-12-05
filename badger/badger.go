@@ -105,10 +105,7 @@ func (b *store) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
 
 func (b *store) WriteShelf(ctx context.Context, shelfName string, fn func(writer stoabs.Writer) error) error {
 	return b.doTX(ctx, func(tx *tx) error {
-		shelf, err := tx.GetShelfWriter(shelfName)
-		if err != nil {
-			return err
-		}
+		shelf := tx.GetShelfWriter(shelfName)
 		return fn(shelf)
 	}, true, nil)
 }
@@ -182,8 +179,8 @@ func (b *tx) GetShelfReader(shelfName string) stoabs.Reader {
 	return b.getBucket(shelfName)
 }
 
-func (b *tx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
-	return &badgerShelf{name: shelfName, tx: b, ctx: b.ctx}, nil
+func (b *tx) GetShelfWriter(shelfName string) stoabs.Writer {
+	return &badgerShelf{name: shelfName, tx: b, ctx: b.ctx}
 }
 
 func (b *tx) getBucket(shelfName string) stoabs.Reader {
