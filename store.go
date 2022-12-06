@@ -241,7 +241,7 @@ func OnRollback(fn func()) TxOption {
 type WriteTx interface {
 	ReadTx
 	// GetShelfWriter returns the specified shelf for writing. If it doesn't exist, it will be created.
-	// Returns an errWriter if unsuccessful.
+	// To keep the API easy to use it doesn't return an error when it fails, but any call to the returned Writer will return the error that occurred.
 	GetShelfWriter(shelfName string) Writer
 }
 
