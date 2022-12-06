@@ -282,7 +282,7 @@ func NewErrorWriter(err error) Writer {
 	return errWriter{err: ErrDatabase{error: err}}
 }
 
-// errWriter is a shelfWriter that already failed, but to reduce the error count it'll fail on the write operation
+// errWriter is a shelfWriter that already failed, but to reduce the error cases to be handled, it'll fail on all operations
 type errWriter struct {
 	err error
 }
