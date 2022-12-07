@@ -279,7 +279,7 @@ func (n NilReader) Stats() ShelfStats {
 
 // NewErrorWriter returns a Writer that will return the error for every method
 func NewErrorWriter(err error) Writer {
-	return errWriter{err: ErrDatabase{error: err}}
+	return errWriter{err: DatabaseError(err)}
 }
 
 // errWriter is a shelfWriter that already failed, but to reduce the error cases to be handled, it'll fail on all operations

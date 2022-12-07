@@ -58,3 +58,13 @@ func TestDatabaseError(t *testing.T) {
 		assert.ErrorIs(t, target, firstError)
 	})
 }
+
+func TestNewErrorWriter(t *testing.T) {
+	t.Run("it wraps an DatabaseError", func(t *testing.T) {
+		writer := NewErrorWriter(errors.New("test"))
+
+		_, err := writer.Get(BytesKey{})
+
+		assert.ErrorIs(t, ErrDatabase{}, err)
+	})
+}
