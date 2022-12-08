@@ -52,10 +52,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
-				writer, err := tx.GetShelfWriter(shelf)
-				if err != nil {
-					return err
-				}
+				writer := tx.GetShelfWriter(shelf)
 				return writer.Put(bytesKey, bytesValue)
 			})
 			if !assert.NoError(t, err) {
@@ -74,10 +71,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 			store := createStore(t, storeProvider)
 
 			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
-				writer, err := tx.GetShelfWriter(shelf)
-				if err != nil {
-					return err
-				}
+				writer := tx.GetShelfWriter(shelf)
 				return writer.Put(stoabs.BytesKey(stringKey), []byte(stringValue))
 			})
 			if !assert.NoError(t, err) {
@@ -527,10 +521,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 			var onRollbackCalled bool
 
 			err := store.Write(ctx, func(tx stoabs.WriteTx) error {
-				writer, err := tx.GetShelfWriter(shelf)
-				if err != nil {
-					return err
-				}
+				writer := tx.GetShelfWriter(shelf)
 				return writer.Put(bytesKey, bytesValue)
 			}, stoabs.AfterCommit(func() {
 				// Happens after commit, so we should be able to read the data now
@@ -636,10 +627,7 @@ func TestTransactionWriteLock(t *testing.T, storeProvider StoreProvider) {
 							return errors.New("concurrent write transactions detected")
 						}
 						defer mux.Unlock()
-						writer, err := tx.GetShelfWriter(shelf)
-						if err != nil {
-							return err
-						}
+						writer := tx.GetShelfWriter(shelf)
 						logrus.Infof("end of %d", idx)
 						return writer.Put(bytesKey, bytesValue)
 					}, stoabs.WithWriteLock())

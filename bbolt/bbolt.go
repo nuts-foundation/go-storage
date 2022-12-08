@@ -127,10 +127,7 @@ func (b *store) Read(ctx context.Context, fn func(stoabs.ReadTx) error) error {
 
 func (b *store) WriteShelf(ctx context.Context, shelfName string, fn func(writer stoabs.Writer) error) error {
 	return b.doTX(ctx, func(tx *bbolt.Tx) error {
-		shelf, err := bboltTx{tx: tx, store: b, ctx: ctx}.GetShelfWriter(shelfName)
-		if err != nil {
-			return err
-		}
+		shelf := bboltTx{tx: tx, store: b, ctx: ctx}.GetShelfWriter(shelfName)
 		return fn(shelf)
 	}, true, nil)
 }
@@ -228,12 +225,12 @@ func (b bboltTx) GetShelfReader(shelfName string) stoabs.Reader {
 	return b.getBucket(shelfName)
 }
 
-func (b bboltTx) GetShelfWriter(shelfName string) (stoabs.Writer, error) {
+func (b bboltTx) GetShelfWriter(shelfName string) stoabs.Writer {
 	bucket, err := b.tx.CreateBucketIfNotExists([]byte(shelfName))
 	if err != nil {
-		return nil, stoabs.DatabaseError(err)
+		return stoabs.NewErrorWriter(err)
 	}
-	return &bboltShelf{bucket: bucket, ctx: b.ctx}, nil
+	return &bboltShelf{bucket: bucket, ctx: b.ctx}
 }
 
 func (b bboltTx) getBucket(shelfName string) stoabs.Reader {
