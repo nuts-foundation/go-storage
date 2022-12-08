@@ -395,12 +395,11 @@ func (mr *MockWriteTxMockRecorder) GetShelfReader(shelfName interface{}) *gomock
 }
 
 // GetShelfWriter mocks base method.
-func (m *MockWriteTx) GetShelfWriter(shelfName string) (Writer, error) {
+func (m *MockWriteTx) GetShelfWriter(shelfName string) Writer {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShelfWriter", shelfName)
 	ret0, _ := ret[0].(Writer)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetShelfWriter indicates an expected call of GetShelfWriter.
