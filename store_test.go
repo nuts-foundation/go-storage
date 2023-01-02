@@ -48,6 +48,9 @@ func TestDatabaseError(t *testing.T) {
 		assert.ErrorAs(t, ErrStoreIsClosed, new(ErrDatabase), "ErrStoreIsClosed should be a ErrDatabase")
 		assert.ErrorAs(t, ErrCommitFailed, new(ErrDatabase), "ErrCommitFailed should be a ErrDatabase")
 	})
+	t.Run("does not wrap non-db errors", func(t *testing.T) {
+		assert.False(t, errors.As(ErrKeyNotFound, new(ErrDatabase)), "ErrKeyNotFound is not a ErrDatabase")
+	})
 	t.Run("does not double wrap", func(t *testing.T) {
 		firstError := DatabaseError(errors.New("this is wrapped"))
 		secondError := DatabaseError(fmt.Errorf("this is not wrapped: %w", firstError))
@@ -66,5 +69,13 @@ func TestNewErrorWriter(t *testing.T) {
 		_, err := writer.Get(BytesKey{})
 
 		assert.ErrorIs(t, ErrDatabase{}, err)
+	})
+}
+
+func TestNilReader_Get(t *testing.T) {
+	t.Run("returns error", func(t *testing.T) {
+		data, err := NilReader{}.Get(BytesKey{})
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+		assert.Nil(t, data)
 	})
 }

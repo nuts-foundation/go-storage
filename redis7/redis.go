@@ -328,8 +328,8 @@ func (s shelf) Delete(key stoabs.Key) error {
 
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 	result, err := s.reader.Get(s.ctx, s.toRedisKey(key)).Result()
-	if err == redis.Nil {
-		return nil, nil
+	if errors.Is(err, redis.Nil) {
+		return nil, stoabs.ErrKeyNotFound
 	} else if err != nil {
 		return nil, stoabs.DatabaseError(err)
 	}

@@ -116,7 +116,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 				t.Fatal()
 				return nil
 			})
-			assert.NoError(t, err)
+			assert.ErrorIs(t, err, stoabs.ErrKeyNotFound)
 		})
 
 		t.Run("read non-existing key", func(t *testing.T) {
@@ -134,9 +134,7 @@ func TestReadingAndWriting(t *testing.T, storeProvider StoreProvider) {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
-			if !assert.NoError(t, err) {
-				return
-			}
+			assert.ErrorIs(t, err, stoabs.ErrKeyNotFound)
 			assert.Nil(t, actual)
 		})
 	})
@@ -598,7 +596,7 @@ func TestWriteTransactions(t *testing.T, storeProvider StoreProvider) {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
-			assert.NoError(t, err)
+			assert.ErrorIs(t, err, stoabs.ErrKeyNotFound)
 			assert.Nil(t, actual)
 		})
 	})
@@ -685,7 +683,7 @@ func TestDelete(t *testing.T, storeProvider StoreProvider) {
 				actual, err = reader.Get(bytesKey)
 				return err
 			})
-			assert.NoError(t, err)
+			assert.ErrorIs(t, err, stoabs.ErrKeyNotFound)
 			assert.Nil(t, actual)
 		})
 		t.Run("delete non-existing entry", func(t *testing.T) {
