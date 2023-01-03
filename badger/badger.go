@@ -243,7 +243,7 @@ func (t badgerShelf) Get(key stoabs.Key) ([]byte, error) {
 	item, err := t.tx.badgerTx.Get(t.key(key).Bytes())
 	if err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
-			return nil, nil
+			return nil, stoabs.ErrKeyNotFound
 		}
 		return nil, err
 	}

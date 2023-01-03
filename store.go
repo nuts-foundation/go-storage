@@ -44,7 +44,7 @@ type ErrDatabase struct {
 
 func (e ErrDatabase) Error() string {
 	// Use Sprintf to avoid dereferencing of wrapped nil error
-	return fmt.Sprintf("Database Error: %s", e.error)
+	return fmt.Sprintf("database error: %s", e.error)
 }
 
 func (e ErrDatabase) Is(other error) bool {
@@ -57,6 +57,12 @@ func (e ErrDatabase) Unwrap() error {
 
 // ErrStoreIsClosed is returned when an operation is executed on a closed store. Is also a ErrDatabase.
 var ErrStoreIsClosed = DatabaseError(errors.New("database not open"))
+
+// ErrCommitFailed is returned when the commit of transaction fails. Is also a ErrDatabase.
+var ErrCommitFailed = DatabaseError(errors.New("unable to commit transaction"))
+
+// ErrKeyNotFound is returned when the requested key does not exist
+var ErrKeyNotFound = errors.New("key not found")
 
 const DefaultTransactionTimeout = 30 * time.Second
 
@@ -138,7 +144,8 @@ type CallerFn func(key Key, value []byte) error
 
 // Reader is used to read from a shelf.
 type Reader interface {
-	// Get returns the value for the given key. If it does not exist it returns nil.
+	// Get returns the value for the given key.
+	// If the key does not exist it returns ErrKeyNotFound.
 	// Returns a ErrDatabase if unsuccessful.
 	Get(key Key) ([]byte, error)
 	// Iterate walks over all key/value pairs for this shelf. Ordering is not guaranteed.
@@ -163,9 +170,6 @@ type Writer interface {
 	// Returns a ErrDatabase if unsuccessful.
 	Delete(key Key) error
 }
-
-// ErrCommitFailed is returned when the commit of transaction fails. Is also a ErrDatabase.
-var ErrCommitFailed = DatabaseError(errors.New("unable to commit transaction"))
 
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
@@ -259,7 +263,7 @@ type ReadTx interface {
 type NilReader struct{}
 
 func (n NilReader) Get(_ Key) ([]byte, error) {
-	return nil, nil
+	return nil, ErrKeyNotFound
 }
 
 func (n NilReader) Iterate(_ CallerFn, _ Key) error {

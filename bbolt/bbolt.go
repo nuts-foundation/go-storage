@@ -252,6 +252,10 @@ type bboltShelf struct {
 
 func (t bboltShelf) Get(key stoabs.Key) ([]byte, error) {
 	value := t.bucket.Get(key.Bytes())
+	if value == nil {
+		return nil, stoabs.ErrKeyNotFound
+	}
+
 	// Because things will go terribly wrong when you use a []byte returned by BBolt outside its transaction,
 	// we want to make sure to work with a copy.
 	//

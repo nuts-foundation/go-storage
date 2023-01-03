@@ -89,9 +89,7 @@ func TestBBolt_WriteShelf(t *testing.T) {
 			actual, err = reader.Get(stoabs.BytesKey(key))
 			return err
 		})
-		if !assert.NoError(t, err) {
-			return
-		}
+		assert.ErrorIs(t, err, stoabs.ErrKeyNotFound)
 		assert.Nil(t, actual)
 	})
 }
