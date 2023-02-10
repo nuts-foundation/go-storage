@@ -5,9 +5,9 @@ go 1.19
 require (
 	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-redsync/redsync/v4 v4.8.1
 	github.com/golang/mock v1.6.0
+	github.com/redis/go-redis/v9 v9.0.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
 	go.etcd.io/bbolt v1.3.7
@@ -32,7 +32,6 @@ require (
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/redis/go-redis/v9 v9.0.2 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/net v0.2.0 // indirect
