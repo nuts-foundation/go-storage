@@ -3,7 +3,7 @@ module github.com/nuts-foundation/go-stoabs
 go 1.19
 
 require (
-	github.com/alicebob/miniredis/v2 v2.30.0
+	github.com/alicebob/miniredis/v2 v2.30.1
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-redsync/redsync/v4 v4.7.1
@@ -32,7 +32,7 @@ require (
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
+	github.com/yuin/gopher-lua v1.1.0 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
