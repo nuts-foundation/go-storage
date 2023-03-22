@@ -49,6 +49,7 @@ func TestBBolt(t *testing.T) {
 	kvtests.TestReadingAndWriting(t, provider)
 	kvtests.TestRange(t, provider)
 	kvtests.TestIterate(t, provider)
+	kvtests.TestEmpty(t, provider)
 	kvtests.TestClose(t, provider)
 	kvtests.TestDelete(t, provider)
 	kvtests.TestStats(t, provider)

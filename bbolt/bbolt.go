@@ -250,6 +250,12 @@ type bboltShelf struct {
 	ctx    context.Context
 }
 
+func (t bboltShelf) Empty() (bool, error) {
+	// bbolt statistics can be used since they are accurate
+	stats := t.Stats()
+	return stats.NumEntries == 0, nil
+}
+
 func (t bboltShelf) Get(key stoabs.Key) ([]byte, error) {
 	value := t.bucket.Get(key.Bytes())
 	if value == nil {
