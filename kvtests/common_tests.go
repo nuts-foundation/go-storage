@@ -318,6 +318,24 @@ func TestEmpty(t *testing.T, storeProvider StoreProvider) {
 			assert.NoError(t, err)
 		})
 
+		t.Run("returns true for an empty shelf when other data is available", func(t *testing.T) {
+			store := createStore(t, storeProvider)
+
+			// Write some data
+			_ = store.WriteShelf(ctx, "other", func(writer stoabs.Writer) error {
+				_ = writer.Put(stoabs.BytesKey{0}, []byte{0})
+				return nil
+			})
+
+			err := store.ReadShelf(ctx, shelf, func(reader stoabs.Reader) error {
+				empty, err := reader.Empty()
+				assert.NoError(t, err)
+				assert.True(t, empty)
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+
 		t.Run("returns false for a non-empty shelf", func(t *testing.T) {
 			store := createStore(t, storeProvider)
 
