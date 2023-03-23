@@ -47,6 +47,7 @@ func TestBadger(t *testing.T) {
 
 	kvtests.TestReadingAndWriting(t, provider)
 	kvtests.TestRange(t, provider)
+	kvtests.TestEmpty(t, provider)
 	kvtests.TestIterate(t, provider)
 	kvtests.TestClose(t, provider)
 	kvtests.TestDelete(t, provider)

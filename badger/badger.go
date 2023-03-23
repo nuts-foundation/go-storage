@@ -239,6 +239,19 @@ func (t badgerShelf) key(key stoabs.Key) stoabs.Key {
 	return newKey
 }
 
+func (t badgerShelf) Empty() (bool, error) {
+	// badger statistics can NOT be used since they are broken
+	// we use an iterator but without a callback and just check if there's a first item
+	// closed by commit or rollback
+	it := t.tx.newIterator()
+	t.tx.mutex.RLock()
+	defer t.tx.mutex.RUnlock()
+
+	prefix := []byte(t.name)
+	it.Seek(prefix)
+	return !it.ValidForPrefix(prefix), nil
+}
+
 func (t badgerShelf) Get(key stoabs.Key) ([]byte, error) {
 	item, err := t.tx.badgerTx.Get(t.key(key).Bytes())
 	if err != nil {

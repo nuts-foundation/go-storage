@@ -144,6 +144,8 @@ type CallerFn func(key Key, value []byte) error
 
 // Reader is used to read from a shelf.
 type Reader interface {
+	// Empty returns true if the shelf contains no data
+	Empty() (bool, error)
 	// Get returns the value for the given key.
 	// If the key does not exist it returns ErrKeyNotFound.
 	// Returns a ErrDatabase if unsuccessful.
@@ -262,6 +264,10 @@ type ReadTx interface {
 // NilReader is a shelfReader that always returns nil. It can be used when shelves do not exist.
 type NilReader struct{}
 
+func (n NilReader) Empty() (bool, error) {
+	return true, nil
+}
+
 func (n NilReader) Get(_ Key) ([]byte, error) {
 	return nil, ErrKeyNotFound
 }
@@ -289,6 +295,10 @@ func NewErrorWriter(err error) Writer {
 // errWriter is a shelfWriter that already failed, but to reduce the error cases to be handled, it'll fail on all operations
 type errWriter struct {
 	err error
+}
+
+func (e errWriter) Empty() (bool, error) {
+	return false, e.err
 }
 
 func (e errWriter) Get(_ Key) ([]byte, error) {

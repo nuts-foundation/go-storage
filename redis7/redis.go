@@ -326,6 +326,24 @@ func (s shelf) Delete(key stoabs.Key) error {
 	return nil
 }
 
+func (s shelf) Empty() (bool, error) {
+	// Redis has no stats, so we start an iterator and stop after n == 1
+	var cursor uint64
+	var err error
+	var keys []string
+
+	scanCmd := s.reader.Scan(s.ctx, cursor, s.toRedisKey(stoabs.BytesKey(""))+"*", int64(resultCount))
+	keys, cursor, err = scanCmd.Result()
+	if err != nil {
+		return false, err
+	}
+	if len(keys) == 0 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (s shelf) Get(key stoabs.Key) ([]byte, error) {
 	result, err := s.reader.Get(s.ctx, s.toRedisKey(key)).Result()
 	if errors.Is(err, redis.Nil) {

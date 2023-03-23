@@ -79,3 +79,11 @@ func TestNilReader_Get(t *testing.T) {
 		assert.Nil(t, data)
 	})
 }
+
+func TestNilReader_Empty(t *testing.T) {
+	t.Run("returns true", func(t *testing.T) {
+		data, err := NilReader{}.Empty()
+		assert.NoError(t, err)
+		assert.True(t, data)
+	})
+}
