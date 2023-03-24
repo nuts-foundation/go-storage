@@ -132,6 +132,21 @@ func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 	return m.recorder
 }
 
+// Empty mocks base method.
+func (m *MockReader) Empty() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockReaderMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockReader)(nil).Empty))
+}
+
 // Get mocks base method.
 func (m *MockReader) Get(key Key) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -224,6 +239,21 @@ func (m *MockWriter) Delete(key Key) error {
 func (mr *MockWriterMockRecorder) Delete(key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockWriter)(nil).Delete), key)
+}
+
+// Empty mocks base method.
+func (m *MockWriter) Empty() (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Empty")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Empty indicates an expected call of Empty.
+func (mr *MockWriterMockRecorder) Empty() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockWriter)(nil).Empty))
 }
 
 // Get mocks base method.
