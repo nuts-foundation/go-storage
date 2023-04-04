@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/alicebob/miniredis/v2 v2.30.1
-	github.com/dgraph-io/badger/v3 v3.2103.5
+	github.com/dgraph-io/badger/v4 v4.0.1
 	github.com/go-redsync/redsync/v4 v4.8.1
 	github.com/golang/mock v1.6.0
 	github.com/redis/go-redis/v9 v9.0.3
