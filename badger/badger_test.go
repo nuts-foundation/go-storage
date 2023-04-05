@@ -22,7 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/nuts-foundation/go-stoabs"
 	"github.com/nuts-foundation/go-stoabs/kvtests"
 	"github.com/nuts-foundation/go-stoabs/util"
