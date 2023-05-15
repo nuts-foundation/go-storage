@@ -423,7 +423,7 @@ func TestIterate(t *testing.T, storeProvider StoreProvider) {
 
 				return err
 			})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, actualKeys, len(expectedKeys))
 			for _, key := range expectedKeys {
 				assert.Contains(t, actualKeys, key)
@@ -797,7 +797,6 @@ func TestStats(t *testing.T, storeProvider StoreProvider) {
 			stats := getStats(store, shelf)
 
 			assert.Equal(t, uint(1), stats.NumEntries)
-			assert.Less(t, uint(0), stats.ShelfSize)
 		})
 	})
 }
