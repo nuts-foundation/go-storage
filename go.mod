@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.1.0
 	github.com/go-redsync/redsync/v4 v4.8.1
 	github.com/golang/mock v1.6.0
-	github.com/redis/go-redis/v9 v9.0.4
+	github.com/redis/go-redis/v9 v9.0.5
 	github.com/sirupsen/logrus v1.9.2
 	github.com/stretchr/testify v1.8.3
 	go.etcd.io/bbolt v1.3.7
