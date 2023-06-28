@@ -3,7 +3,7 @@ module github.com/nuts-foundation/go-stoabs
 go 1.20
 
 require (
-	github.com/alicebob/miniredis/v2 v2.30.3
+	github.com/alicebob/miniredis/v2 v2.30.4
 	github.com/dgraph-io/badger/v4 v4.1.0
 	github.com/go-redsync/redsync/v4 v4.8.1
 	github.com/golang/mock v1.6.0
