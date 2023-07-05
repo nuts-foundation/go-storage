@@ -6,11 +6,11 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.4
 	github.com/dgraph-io/badger/v4 v4.1.0
 	github.com/go-redsync/redsync/v4 v4.8.1
-	github.com/golang/mock v1.6.0
 	github.com/redis/go-redis/v9 v9.0.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/bbolt v1.3.7
+	go.uber.org/mock v0.1.0
 )
 
 require (
