@@ -6,7 +6,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.5
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/go-redsync/redsync/v4 v4.9.4
-	github.com/redis/go-redis/v9 v9.1.0
+	github.com/redis/go-redis/v9 v9.2.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/bbolt v1.3.7
