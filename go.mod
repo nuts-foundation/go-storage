@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/alicebob/miniredis/v2 v2.31.0
 	github.com/dgraph-io/badger/v4 v4.2.0
-	github.com/go-redsync/redsync/v4 v4.9.4
+	github.com/go-redsync/redsync/v4 v4.10.0
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
@@ -29,6 +29,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
