@@ -319,6 +319,16 @@ func (s shelf) Put(key stoabs.Key, value []byte) error {
 	return nil
 }
 
+func (s shelf) PutTTL(key stoabs.Key, value []byte, duration time.Duration) error {
+	if err := s.store.checkOpen(); err != nil {
+		return err
+	}
+	if err := s.writer.Set(s.ctx, s.toRedisKey(key), value, duration).Err(); err != nil {
+		return stoabs.DatabaseError(err)
+	}
+	return nil
+}
+
 func (s shelf) Delete(key stoabs.Key) error {
 	if err := s.writer.Del(s.ctx, s.toRedisKey(key)).Err(); err != nil {
 		return stoabs.DatabaseError(err)

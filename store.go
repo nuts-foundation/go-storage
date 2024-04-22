@@ -173,6 +173,11 @@ type Writer interface {
 	Delete(key Key) error
 }
 
+type WriterTTl interface {
+	Writer
+	PutTTL(key Key, value []byte, duration time.Duration) error
+}
+
 type Store interface {
 	// Close releases all resources associated with the store. It is safe to call multiple (subsequent) times.
 	// The context being passed can be used to specify a timeout for the close operation.
