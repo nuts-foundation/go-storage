@@ -173,7 +173,7 @@ type Writer interface {
 	Delete(key Key) error
 }
 
-type WriterTTl interface {
+type WriterTTL interface {
 	Writer
 	PutTTL(key Key, value []byte, duration time.Duration) error
 }

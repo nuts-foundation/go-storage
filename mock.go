@@ -333,31 +333,31 @@ func (mr *MockWriterMockRecorder) Stats() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockWriter)(nil).Stats))
 }
 
-// MockWriterTTl is a mock of WriterTTl interface.
-type MockWriterTTl struct {
+// MockWriterTTL is a mock of WriterTTL interface.
+type MockWriterTTL struct {
 	ctrl     *gomock.Controller
-	recorder *MockWriterTTlMockRecorder
+	recorder *MockWriterTTLMockRecorder
 }
 
-// MockWriterTTlMockRecorder is the mock recorder for MockWriterTTl.
-type MockWriterTTlMockRecorder struct {
-	mock *MockWriterTTl
+// MockWriterTTLMockRecorder is the mock recorder for MockWriterTTL.
+type MockWriterTTLMockRecorder struct {
+	mock *MockWriterTTL
 }
 
-// NewMockWriterTTl creates a new mock instance.
-func NewMockWriterTTl(ctrl *gomock.Controller) *MockWriterTTl {
-	mock := &MockWriterTTl{ctrl: ctrl}
-	mock.recorder = &MockWriterTTlMockRecorder{mock}
+// NewMockWriterTTL creates a new mock instance.
+func NewMockWriterTTL(ctrl *gomock.Controller) *MockWriterTTL {
+	mock := &MockWriterTTL{ctrl: ctrl}
+	mock.recorder = &MockWriterTTLMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockWriterTTl) EXPECT() *MockWriterTTlMockRecorder {
+func (m *MockWriterTTL) EXPECT() *MockWriterTTLMockRecorder {
 	return m.recorder
 }
 
 // Delete mocks base method.
-func (m *MockWriterTTl) Delete(key Key) error {
+func (m *MockWriterTTL) Delete(key Key) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", key)
 	ret0, _ := ret[0].(error)
@@ -365,13 +365,13 @@ func (m *MockWriterTTl) Delete(key Key) error {
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockWriterTTlMockRecorder) Delete(key any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Delete(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockWriterTTl)(nil).Delete), key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockWriterTTL)(nil).Delete), key)
 }
 
 // Empty mocks base method.
-func (m *MockWriterTTl) Empty() (bool, error) {
+func (m *MockWriterTTL) Empty() (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Empty")
 	ret0, _ := ret[0].(bool)
@@ -380,13 +380,13 @@ func (m *MockWriterTTl) Empty() (bool, error) {
 }
 
 // Empty indicates an expected call of Empty.
-func (mr *MockWriterTTlMockRecorder) Empty() *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Empty() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockWriterTTl)(nil).Empty))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockWriterTTL)(nil).Empty))
 }
 
 // Get mocks base method.
-func (m *MockWriterTTl) Get(key Key) ([]byte, error) {
+func (m *MockWriterTTL) Get(key Key) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", key)
 	ret0, _ := ret[0].([]byte)
@@ -395,13 +395,13 @@ func (m *MockWriterTTl) Get(key Key) ([]byte, error) {
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockWriterTTlMockRecorder) Get(key any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Get(key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWriterTTl)(nil).Get), key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWriterTTL)(nil).Get), key)
 }
 
 // Iterate mocks base method.
-func (m *MockWriterTTl) Iterate(callback CallerFn, keyType Key) error {
+func (m *MockWriterTTL) Iterate(callback CallerFn, keyType Key) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iterate", callback, keyType)
 	ret0, _ := ret[0].(error)
@@ -409,13 +409,13 @@ func (m *MockWriterTTl) Iterate(callback CallerFn, keyType Key) error {
 }
 
 // Iterate indicates an expected call of Iterate.
-func (mr *MockWriterTTlMockRecorder) Iterate(callback, keyType any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Iterate(callback, keyType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterate", reflect.TypeOf((*MockWriterTTl)(nil).Iterate), callback, keyType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterate", reflect.TypeOf((*MockWriterTTL)(nil).Iterate), callback, keyType)
 }
 
 // Put mocks base method.
-func (m *MockWriterTTl) Put(key Key, value []byte) error {
+func (m *MockWriterTTL) Put(key Key, value []byte) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Put", key, value)
 	ret0, _ := ret[0].(error)
@@ -423,13 +423,13 @@ func (m *MockWriterTTl) Put(key Key, value []byte) error {
 }
 
 // Put indicates an expected call of Put.
-func (mr *MockWriterTTlMockRecorder) Put(key, value any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Put(key, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockWriterTTl)(nil).Put), key, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockWriterTTL)(nil).Put), key, value)
 }
 
 // PutTTL mocks base method.
-func (m *MockWriterTTl) PutTTL(key Key, value []byte, duration time.Duration) error {
+func (m *MockWriterTTL) PutTTL(key Key, value []byte, duration time.Duration) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PutTTL", key, value, duration)
 	ret0, _ := ret[0].(error)
@@ -437,13 +437,13 @@ func (m *MockWriterTTl) PutTTL(key Key, value []byte, duration time.Duration) er
 }
 
 // PutTTL indicates an expected call of PutTTL.
-func (mr *MockWriterTTlMockRecorder) PutTTL(key, value, duration any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) PutTTL(key, value, duration any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutTTL", reflect.TypeOf((*MockWriterTTl)(nil).PutTTL), key, value, duration)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutTTL", reflect.TypeOf((*MockWriterTTL)(nil).PutTTL), key, value, duration)
 }
 
 // Range mocks base method.
-func (m *MockWriterTTl) Range(from, to Key, callback CallerFn, stopAtNil bool) error {
+func (m *MockWriterTTL) Range(from, to Key, callback CallerFn, stopAtNil bool) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Range", from, to, callback, stopAtNil)
 	ret0, _ := ret[0].(error)
@@ -451,13 +451,13 @@ func (m *MockWriterTTl) Range(from, to Key, callback CallerFn, stopAtNil bool) e
 }
 
 // Range indicates an expected call of Range.
-func (mr *MockWriterTTlMockRecorder) Range(from, to, callback, stopAtNil any) *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Range(from, to, callback, stopAtNil any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockWriterTTl)(nil).Range), from, to, callback, stopAtNil)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Range", reflect.TypeOf((*MockWriterTTL)(nil).Range), from, to, callback, stopAtNil)
 }
 
 // Stats mocks base method.
-func (m *MockWriterTTl) Stats() ShelfStats {
+func (m *MockWriterTTL) Stats() ShelfStats {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stats")
 	ret0, _ := ret[0].(ShelfStats)
@@ -465,9 +465,9 @@ func (m *MockWriterTTl) Stats() ShelfStats {
 }
 
 // Stats indicates an expected call of Stats.
-func (mr *MockWriterTTlMockRecorder) Stats() *gomock.Call {
+func (mr *MockWriterTTLMockRecorder) Stats() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockWriterTTl)(nil).Stats))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stats", reflect.TypeOf((*MockWriterTTL)(nil).Stats))
 }
 
 // MockStore is a mock of Store interface.
