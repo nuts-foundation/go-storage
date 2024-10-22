@@ -5,6 +5,7 @@
 //
 //	mockgen -destination=mock.go -package stoabs -source=store.go
 //
+
 // Package stoabs is a generated GoMock package.
 package stoabs
 
@@ -19,6 +20,7 @@ import (
 type MockKVStore struct {
 	ctrl     *gomock.Controller
 	recorder *MockKVStoreMockRecorder
+	isgomock struct{}
 }
 
 // MockKVStoreMockRecorder is the mock recorder for MockKVStore.
@@ -117,6 +119,7 @@ func (mr *MockKVStoreMockRecorder) WriteShelf(ctx, shelfName, fn any) *gomock.Ca
 type MockReader struct {
 	ctrl     *gomock.Controller
 	recorder *MockReaderMockRecorder
+	isgomock struct{}
 }
 
 // MockReaderMockRecorder is the mock recorder for MockReader.
@@ -212,6 +215,7 @@ func (mr *MockReaderMockRecorder) Stats() *gomock.Call {
 type MockWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockWriterMockRecorder
+	isgomock struct{}
 }
 
 // MockWriterMockRecorder is the mock recorder for MockWriter.
@@ -335,6 +339,7 @@ func (mr *MockWriterMockRecorder) Stats() *gomock.Call {
 type MockStore struct {
 	ctrl     *gomock.Controller
 	recorder *MockStoreMockRecorder
+	isgomock struct{}
 }
 
 // MockStoreMockRecorder is the mock recorder for MockStore.
@@ -372,6 +377,7 @@ func (mr *MockStoreMockRecorder) Close(ctx any) *gomock.Call {
 type MockTxOption struct {
 	ctrl     *gomock.Controller
 	recorder *MockTxOptionMockRecorder
+	isgomock struct{}
 }
 
 // MockTxOptionMockRecorder is the mock recorder for MockTxOption.
@@ -395,6 +401,7 @@ func (m *MockTxOption) EXPECT() *MockTxOptionMockRecorder {
 type MockWriteTx struct {
 	ctrl     *gomock.Controller
 	recorder *MockWriteTxMockRecorder
+	isgomock struct{}
 }
 
 // MockWriteTxMockRecorder is the mock recorder for MockWriteTx.
@@ -474,6 +481,7 @@ func (mr *MockWriteTxMockRecorder) Unwrap() *gomock.Call {
 type MockReadTx struct {
 	ctrl     *gomock.Controller
 	recorder *MockReadTxMockRecorder
+	isgomock struct{}
 }
 
 // MockReadTxMockRecorder is the mock recorder for MockReadTx.
